@@ -27,7 +27,7 @@ class Bytecode:
           print()
           print(f"  This error occured at an line with the arguments: {module[1]}")
           print(f"    Try using your code editor's text finder, usually under the edits tab. And paste that argument above there!")
-          return "exitcode 0"
+          return "exitcode 1"
 
         bytecode += f"<namespace:{module[0]} args[{module[1]}]>\n"
         
@@ -45,6 +45,7 @@ class Bytecode:
     
   def compile(self):
     # expects self.contents to be bytecode
+    compile_code = ""
     load_namespaces = []
     namespace_passage = []
     reached_bytecode = False
@@ -64,6 +65,15 @@ class Bytecode:
           continue
         continue
       continue
+
+    if not load_namespaces.isEmpty():
+      for namespace in load_namespaces:
+        contents = namespace.split(" ")
+        with open(contents[1], "r") as file:
+          content = file.read()
+          # TODO: parse the file
+          # (assumes its an binary with an label (_main), provide it with the <namespace:... args[...]>, and add only the necessary parts to compile_code variable)
+          compile_code += f"start[namespace <{contents[0]>]\n{content}\nend\n"
     
     header = self.header.replace("compiled: false", "compiled: true", 1)
     self.contents = self.contents.replace(f"[bytecode-header]\n{self.header}\n[end-header]", f"[bytecode-header]\n{header}\n[end-header]", 1)
