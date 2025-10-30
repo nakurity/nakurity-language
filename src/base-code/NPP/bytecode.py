@@ -77,6 +77,13 @@ class Bytecode:
                 libfile = libpath.replace("cfd:/", "")
                 # For demonstration, just print what would be executed
                 print(f"[interpret] would call {sym} from {libfile} with args {args}")
+                try:
+                    subprocess.run(
+                       [libfile] + args,
+                       check=True
+                    )
+                except Exception as e:
+                    print(f"[interpret] error executing {target}: {e}")
                 # In a real runtime, you’d dlopen libfile and dlsym(sym), then call it.
                 continue
 
