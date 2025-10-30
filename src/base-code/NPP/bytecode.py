@@ -17,6 +17,70 @@ class Bytecode:
   def _normalize_path(self, *parts):
     return Path(Path.cwd(), *parts).resolve()
 
+  def interpret(self):
+        """
+        Walk the bytecode and lazily invoke external binaries.
+        - For each <namespace:NAME args[...]> call the NAME binary with args.
+        - For each <module [stmt]> dispatch to the resolved symbol.
+        """
+        if not self.contents:
+            return
+
+        namespace_resolutions = {}
+        reached_bytecode = False
+
+        for raw_line in self.contents.split("\n"):
+            line = raw_line.strip()
+            if not reached_bytecode:
+                if line.startswith(":") and line[1:].strip() == "start-bytecode":
+                    reached_bytecode = True
+                continue
+
+            if line.startswith("<namespace:"):
+                # e.g. <namespace:import args[<standardly-native.funcs.print()>]>
+                inside = line[len("<namespace:"):-1]  # strip <namespace: and trailing >
+                name, rest = inside.split(" args[", 1)
+                args = rest.rstrip("]")
+                # call the binary for this namespace
+                try:
+                    result = subprocess.run(
+                        [name, args],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    resolved = result.stdout.strip()
+                    namespace_resolutions[name] = resolved
+                    print(f"[interpret] namespace {name} resolved to {resolved}")
+                except Exception as e:
+                    print(f"[interpret] error invoking namespace {name}: {e}")
+                continue
+
+            if line.startswith("<module ["):
+                stmt = line[len("<module ["):-1]  # strip <module [ and trailing ]
+                # naive split: first token is function, rest are args
+                tokens = shlex.split(stmt)
+                if not tokens:
+                    continue
+                func = tokens[0]
+                args = tokens[1:]
+                # find which namespace provided this func
+                # (for now assume it's in namespace 'import' resolution)
+                target = namespace_resolutions.get("import")
+                if not target:
+                    print(f"[interpret] no resolution for {func}")
+                    continue
+                # target looks like cfd:/print.so:print
+                # we can exec the .so or a wrapper binary
+                libpath, sym = target.split(":")
+                libfile = libpath.replace("cfd:/", "")
+                # For demonstration, just print what would be executed
+                print(f"[interpret] would call {sym} from {libfile} with args {args}")
+                # In a real runtime, you’d dlopen libfile and dlsym(sym), then call it.
+                continue
+
+            # ignore other tags (<load:>, comments, etc.)
+
   def parse(self):
     """
     Translates source lines into a structured bytecode that captures:
