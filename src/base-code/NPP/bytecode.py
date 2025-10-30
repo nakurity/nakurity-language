@@ -3,6 +3,7 @@
 from pathlib import Path
 import os
 import uuid
+import subprocess
 import shlex
 
 class Bytecode:
