@@ -1,0 +1,4 @@
+# print.nh
+export["cfd:/print.so:print"]
+# cfd:/ means "current file directory", so resolves to cwd/modules/standardly-native/funcs/print.so
+# symbol is 'print'
