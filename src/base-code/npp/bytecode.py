@@ -45,7 +45,7 @@ class Bytecode:
                 # call the binary for this namespace
                 try:
                     result = subprocess.run(
-                        [name, args],
+                        [f"packy/namespaces/@{name}", f"'{args}'"],
                         capture_output=True,
                         text=True,
                         check=True
@@ -133,8 +133,8 @@ class Bytecode:
         name = tokens[0]
         args = " ".join(tokens[1:]) if len(tokens) > 1 else ""
 
-        # compute default namespace/module path under cwd/runtime/namespaces/@/<name>
-        ns_path = self._normalize_path("runtime", "namespaces", "@", name)
+        # compute default namespace/module path under cwd/runtime/namespaces/@<name>
+        ns_path = self._normalize_path("packy", "namespaces", f"@{name}")
 
         if not os.path.exists(ns_path):
           print("===============================================================================")
