@@ -78,10 +78,12 @@ class Bytecode:
                 # For demonstration, just print what would be executed
                 print(f"[interpret] would call {sym} from {libfile} with args {args}")
                 try:
-                    subprocess.run(
+                    output = subprocess.run(
                        [libfile] + args,
+                       capture_output=True,
                        check=True
                     )
+                  print(output)
                 except Exception as e:
                     print(f"[interpret] error executing {target}: {e}")
                 # In a real runtime, you’d dlopen libfile and dlsym(sym), then call it.
