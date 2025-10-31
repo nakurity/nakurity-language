@@ -164,7 +164,7 @@ class Bytecode:
     bytecode.append(":end-bytecode")
     self.contents = "\n".join(bytecode)
 
-  def compile(self, mode="compile"):
+  def compile(self):
     """
     mode: "interpret" or "compile"
     - interpret: keep bytecode, runtime will dynamically invoke asm binaries with args
@@ -208,19 +208,6 @@ class Bytecode:
           load_namespaces.append((parts[0], Path(parts[1]).resolve()))
         continue
       # modules and other tags are ignored here; a lower-level parser will process them
-
-    # interpret mode: do not embed code; leave bytecode intact
-    if mode == "interpret":
-      # flip header flag
-      header = self.header.replace("compiled: false", "compiled: true", 1)
-      self.contents = self.contents.replace(
-        f"[bytecode-header]\n{self.header}\n[end-header]",
-        f"[bytecode-header]\n{header}\n[end-header]",
-        1
-      )
-      self.header = header
-      # In interpret mode, we rely on runtime to launch asm binaries using <namespace:... args[...]>
-      return
 
     # compile mode: embed only necessary binaries requested by load_namespaces
     for name, ns_path in load_namespaces:
