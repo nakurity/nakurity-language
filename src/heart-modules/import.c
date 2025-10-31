@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
 
         // lazy-load nh_export_reader -> function signature: int read_export(const char *, char *, size_t)
         typedef int (*read_export_t)(const char *, char *, size_t);
-        void *sym = load_helper_symbol("nh_export_reader", "read_export");
+        void *sym = load_helper_symbol("read_export", "read_export");
         if (!sym) {
             fprintf(stderr, "missing nh_export_reader helper or symbol\n");
             // don't segfault — treat as failure to load helper
@@ -288,7 +288,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Import error: name too long\n");
             return 1;
         }
-        printf("cfd:/%s.so:%s\n", end_name, end_name);
+        printf("%s.so:%s\n", end_name, end_name);
         return 0;
     }
 

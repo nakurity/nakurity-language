@@ -1,3 +1,5 @@
 __pycache__
 packy
 .vscode
+vcpkg
+.venv

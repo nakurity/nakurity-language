@@ -6,6 +6,7 @@ HELPERS="$BASE_DIR/modules/headerly-native/helpers"
 ACRONYMS="$BASE_DIR/modules/headerly-native/acronyms"
 RUNTIME_DIR="$BASE_DIR/runtime/heart-modules"
 
+mkdir -p "packy/namespaces"
 mkdir -p "$MODULES_DIR" "$RUNTIME_DIR" "$ACRONYMS" "$HEADERS" "$HELPERS"
 
 # # Enables recursive globbing
@@ -44,6 +45,8 @@ mkdir -p "$MODULES_DIR" "$RUNTIME_DIR" "$ACRONYMS" "$HEADERS" "$HELPERS"
 # # Restores the default globbing behavior
 # shopt -u globstar
 
+cp src/base-modules/standardly-native/funcs/print.nh packy/modules/standardly-native/funcs/print.nh
+
 gcc -std=gnu11 -O2 -fPIC -ldl -shared src/heart-modules/import/helpers/find_root.c -o packy/modules/headerly-native/helpers/find_root.so
 gcc -std=gnu11 -O2 -fPIC -ldl -shared src/heart-modules/import/acronyms/cfd.c -o packy/modules/headerly-native/acronyms/cfd.so
 gcc -std=gnu11 -O2 -fPIC -ldl -shared src/heart-modules/import/acronyms/cwd.c -o packy/modules/headerly-native/acronyms/cwd.so
@@ -54,4 +57,8 @@ gcc -std=gnu11 -O2 -fPIC -ldl -shared src/heart-modules/import/helpers/read_expo
 gcc -std=gnu11 -g -O0 -fPIC -ldl src/heart-modules/import.c -o packy/namespaces/@import
 
 nasm -f elf64 -F dwarf -g src/base-modules/standardly-native/funcs/print.asm -o packy/modules/standardly-native/funcs/print.o
-gcc -fPIC -shared -o packy/modules/standardly-native/funcs/print.so packy/modules/standardly-native/funcs/print.o
+ld packy/modules/standardly-native/funcs/print.o -o packy/modules/standardly-native/funcs/print.so
+cp packy/modules/standardly-native/funcs/print.so ./print
+
+gcc -std=c11 -O2 -l vcpkg/packages/jansson_x64-linux/include/jansson.h -o packy/modules/standardly-native/funcs.so src/base-modules/standardly-native/funcs.c
+cp src/base-modules/standardly-native/funcs.nh packy/modules/standardly-native/funcs.nh

@@ -8,6 +8,14 @@ import shlex
 from .nvm import NakurityVM
 import json
 
+from nakuritycore.utils.logging import Logger
+from nakuritycore.data.config import LoggingConfig
+
+loggy = Logger("Loggy's parent (base-code/npp/bytecode.py)", LoggingConfig(
+  # level='DEBUG' # Only enable during development, the typical developer using NakurityLang does not need this
+))
+
+
 class Bytecode:
   def __init__(self, input):
     # input: {"filename": str, "filecontents": str}
@@ -58,20 +66,21 @@ class Bytecode:
                 # call the binary for this namespace
                 try:
                     result = subprocess.run(
-                        [f"packy/namespaces/@{name}", f"'{args}'"],
+                        [f"packy/namespaces/@{name}", f"{args}"],
                         capture_output=True,
                         text=True,
                         check=True
                     )
                     resolved = result.stdout.strip()
                     namespace_resolutions[name] = resolved
-                    print(f"[interpret] namespace {name} resolved to {resolved}")
+                    loggy.debug(f"[interpret] namespace {name} resolved to {resolved}")
                 except Exception as e:
-                    print(f"[interpret] error invoking namespace {name}: {e}")
+                    loggy.debug(f"[interpret] error invoking namespace {name}: {e}")
                 continue
 
             if line.startswith("<module ["):
-                stmt = line[len("<module ["):-1]  # strip <module [ and trailing ]
+                import re
+                stmt = re.match(r"<module \[(.*)\]>", line).group(1)  # strip <module [ and trailing ]
                 # naive split: first token is function, rest are args
                 tokens = shlex.split(stmt)
                 if not tokens:
@@ -82,13 +91,12 @@ class Bytecode:
                 # (for now assume it's in namespace 'import' resolution)
                 target = namespace_resolutions.get("import")
                 if not target:
-                    print(f"[interpret] no resolution for {func}")
+                    loggy.debug(f"[interpret] no resolution for {func}")
                     continue
 
-                libpath, sym = target.split(":")
+                libfile, sym = target.split(":")
                 # Derive executable/wrapper path from libpath (e.g., cfd:/print.so -> ./print)
                 # You may adapt this mapping to your actual runtime layout.
-                libfile = libpath.replace("cfd:/", "")
                 binfile = None
                 # Heuristic: if libfile endswith .so/.bin, try a sibling executable without extension
                 base = os.path.splitext(libfile)[0]
@@ -109,7 +117,7 @@ class Bytecode:
                 try:
                     js = json.loads(resp)
                 except json.JSONDecodeError:
-                    print(f"[interpret] VM returned non-JSON: {resp}")
+                    loggy.debug(f"[interpret] VM returned non-JSON: {resp}")
                     continue
 
                 if js.get("status") == "pending" and isinstance(js.get("registry"), list):
@@ -128,7 +136,7 @@ class Bytecode:
                     try:
                         js2 = json.loads(resp2)
                     except json.JSONDecodeError:
-                        print(f"[interpret] VM resume returned non-JSON: {resp2}")
+                        loggy.debug(f"[interpret] VM resume returned non-JSON: {resp2}")
                         continue
                     if js2.get("status") == "true":
                         out = js2.get("output", "")
@@ -136,7 +144,7 @@ class Bytecode:
                             print(out)
                         continue
                     else:
-                        print(f"[interpret] VM unresolved: {js2}")
+                        loggy.debug(f"[interpret] VM unresolved: {js2}")
                         continue
 
                 if js.get("status") == "true":
@@ -145,7 +153,7 @@ class Bytecode:
                         print(out)
                     continue
 
-                print(f"[interpret] VM error or unknown status: {js}")
+                loggy.debug(f"[interpret] VM error or unknown status: {js}")
                 continue
 
             # ignore other tags (<load:>, comments, etc.)

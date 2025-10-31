@@ -1,4 +1,5 @@
 // cfd.c
+// broken rn, write the full path instead u lazy ass
 #define _GNU_SOURCE
 #include <libgen.h>
 #include <stdio.h>

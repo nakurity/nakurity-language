@@ -12,7 +12,7 @@ char *find_root(const char *start) {
     while (1) {
         struct stat st1, st2;
         char m1[PATH_MAX], m2[PATH_MAX];
-        snprintf(m1, sizeof(m1), "%s/modules", root);
+        snprintf(m1, sizeof(m1), "%s/packy/modules", root);
         snprintf(m2, sizeof(m2), "%s/.nakurity", root);
         if (stat(m1, &st1) == 0 || stat(m2, &st2) == 0)
             return root;

@@ -86,6 +86,19 @@ class NakurityVM:
                 k, t = parse_keytype(payload)
                 spec["returns"].append({"key": k, "type": t})
         return spec
+    
+    def _run_with_stdin_json(self, binpath: str, payload: dict):
+        try:
+            result = subprocess.run(
+                [binpath],
+                input=json.dumps(payload),
+                text=True,
+                capture_output=True,
+                check=False
+            )
+            return result.stdout or "", result.stderr or ""
+        except Exception as e:
+            return "", str(e)
 
     def _synthesize_inputs(self, spec, func_args, registry):
         """
@@ -111,16 +124,8 @@ class NakurityVM:
                 argv.append("")  # placeholder empty input
         # You can expand here to support more keys/types later.
         return argv
-
-    def run(self, func_name: str, binpath: str, func_args: list, registry: dict):
-        """
-        Entry point for the interpreter.
-
-        Returns JSON strings:
-        - {"status":"pending","registry":[]}
-        - {"status":"true","output":"..."}
-        - {"status":"error","message":"..."}  (only on fatal issues)
-        """
+    
+    def _run_standard(self, func_name: str, binpath: str, func_args: list, registry: dict):
         # Step 1: Probe requirements
         probe = self._run_no_args(binpath)
         spec = self._parse_reqbytecode(probe)
@@ -164,6 +169,37 @@ class NakurityVM:
 
         # Default success when no explicit return contract
         return json.dumps({"status": "true", "output": out.strip()})
+
+    def run(self, func_name: str, binpath: str, func_args: list, registry: dict):
+        """
+        Entry point for the interpreter.
+
+        Returns JSON strings:
+        - {"status":"pending","registry":[]}
+        - {"status":"true","output":"..."}
+        - {"status":"error","message":"..."}  (only on fatal issues)
+        """
+        # Step 1: Probe requirements
+        probe = self._run_no_args(binpath)
+        spec = self._parse_reqbytecode(probe)
+
+        requires_registry = any(r["key"] == "registry" for r in spec["requires"])
+        requires_stdin_json = any(r["type"] == "stdin-json" for r in spec["requires"])
+        returns_stdout_json = any(r["type"] == "stdout-json" for r in spec["returns"])
+
+        if requires_registry and requires_stdin_json and returns_stdout_json:
+            payload = {
+                "func": func_name,
+                "args": func_args or [],
+                "registry": registry or {}
+            }
+            stdout, stderr = self._run_with_stdin_json(binpath, payload)
+            if not stdout.strip():
+                return json.dumps({"status": "error", "message": stderr or "no output"})
+            return stdout  # already JSON from lazy_fn
+
+        # --- fallback to normal pipeline ---
+        return self._run_standard(func_name, binpath, func_args, registry)
 
     def resume_with_registry(self, registry: dict):
         """

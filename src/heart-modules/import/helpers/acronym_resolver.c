@@ -12,7 +12,7 @@ typedef const char *(*acronym_func_t)(const char *nh_path, const char *rest);
 
 static void *load_module(const char *name) {
     static char path[PATH_MAX];
-    snprintf(path, sizeof(path), "src/heart-modules/acronyms/%s.so", name);
+    snprintf(path, sizeof(path), "packy/modules/headerly-native/acronyms/%s.so", name);
     void *handle = dlopen(path, RTLD_LAZY | RTLD_LOCAL);
     if (!handle) {
         fprintf(stderr, "[lazy-acronym] failed to load %s: %s\n", path, dlerror());
