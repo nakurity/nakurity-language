@@ -5,6 +5,8 @@ import os
 import uuid
 import subprocess
 import shlex
+from .nvm import NakurityVM
+import json
 
 class Bytecode:
   def __init__(self, input):
