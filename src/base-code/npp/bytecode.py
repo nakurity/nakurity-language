@@ -27,8 +27,16 @@ class Bytecode:
         if not self.contents:
             return
 
+        nvm = NakurityVM()
         namespace_resolutions = {}
         reached_bytecode = False
+
+        # Build an interpreter context as we walk; this can be shared in registry when requested
+        interpreter_context = {
+            "file": str(Path(self.filename).resolve()) if self.filename else "",
+            "namespaces": {},     # filled with namespace_resolutions
+            "bytecode": [],       # lines post :start-bytecode
+        }
 
         for raw_line in self.contents.split("\n"):
             line = raw_line.strip()
@@ -36,6 +44,9 @@ class Bytecode:
                 if line.startswith(":") and line[1:].strip() == "start-bytecode":
                     reached_bytecode = True
                 continue
+
+            # Record visible bytecode lines for context
+            interpreter_context["bytecode"].append(line)
 
             if line.startswith("<namespace:"):
                 # e.g. <namespace:import args[<standardly-native.funcs.print()>]>
@@ -71,22 +82,68 @@ class Bytecode:
                 if not target:
                     print(f"[interpret] no resolution for {func}")
                     continue
-                # target looks like cfd:/print.so:print
-                # we can exec the .so or a wrapper binary
+
                 libpath, sym = target.split(":")
+                # Derive executable/wrapper path from libpath (e.g., cfd:/print.so -> ./print)
+                # You may adapt this mapping to your actual runtime layout.
                 libfile = libpath.replace("cfd:/", "")
-                # For demonstration, just print what would be executed
-                print(f"[interpret] would call {sym} from {libfile} with args {args}")
+                binfile = None
+                # Heuristic: if libfile endswith .so/.bin, try a sibling executable without extension
+                base = os.path.splitext(libfile)[0]
+                candidate = base if os.path.isfile(base) else libfile
+                binfile = candidate
+                # First pass: call VM with current registry (namespaces + context)
+                registry = {
+                    "namespaces": interpreter_context["namespaces"],
+                    "context": {
+                        "file": interpreter_context["file"],
+                        "symbols": {"func": func, "sym": sym},
+                        "bytecode_lines": interpreter_context["bytecode"],
+                    }
+                }
+                resp = nvm.run(func_name=func, binpath=binfile, func_args=args, registry=registry)
+
+                # Handle pending: VM requests registry array to be filled by interpreter
                 try:
-                    output = subprocess.run(
-                       [libfile] + args,
-                       capture_output=True,
-                       check=True
-                    )
-                  print(output)
-                except Exception as e:
-                    print(f"[interpret] error executing {target}: {e}")
-                # In a real runtime, you’d dlopen libfile and dlsym(sym), then call it.
+                    js = json.loads(resp)
+                except json.JSONDecodeError:
+                    print(f"[interpret] VM returned non-JSON: {resp}")
+                    continue
+
+                if js.get("status") == "pending" and isinstance(js.get("registry"), list):
+                    # Provide a full registry context; here we pass a dict but you requested an array.
+                    # We'll convert the dict to a single-element array with one comprehensive object.
+                    full_registry = [{
+                        "namespaces": interpreter_context["namespaces"],
+                        "context": {
+                            "file": interpreter_context["file"],
+                            "symbols": {"func": func, "sym": sym},
+                            "bytecode_lines": interpreter_context["bytecode"],
+                        }
+                    }]
+                    # Resume negotiation
+                    resp2 = nvm.resume_with_registry(full_registry)
+                    try:
+                        js2 = json.loads(resp2)
+                    except json.JSONDecodeError:
+                        print(f"[interpret] VM resume returned non-JSON: {resp2}")
+                        continue
+                    if js2.get("status") == "true":
+                        out = js2.get("output", "")
+                        if out:
+                            print(out)
+                        continue
+                    else:
+                        print(f"[interpret] VM unresolved: {js2}")
+                        continue
+
+                if js.get("status") == "true":
+                    out = js.get("output", "")
+                    if out:
+                        print(out)
+                    continue
+
+                print(f"[interpret] VM error or unknown status: {js}")
                 continue
 
             # ignore other tags (<load:>, comments, etc.)
