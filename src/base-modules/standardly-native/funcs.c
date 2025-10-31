@@ -327,7 +327,7 @@ char *example_resolver_write_temp(const char *func_name, const char *params, con
 }
 
 #include <ctype.h>
-#include <vcpkg/packages/jansson_x64-linux/include/jansson.h>  // or cJSON if you prefer
+#include <jansson.h>  // or cJSON if you prefer
 
 int main(int argc, char **argv) {
     if (argc == 1) {

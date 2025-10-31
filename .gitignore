@@ -3,3 +3,4 @@ packy
 .vscode
 vcpkg
 .venv
+logs
