@@ -12,7 +12,7 @@ from nakuritycore.utils.logging import Logger
 from nakuritycore.data.config import LoggingConfig
 
 loggy = Logger("Loggy's parent (base-code/npp/bytecode.py)", LoggingConfig(
-  # level='DEBUG' # Only enable during development, the typical developer using NakurityLang does not need this
+  level='DEBUG' # Only enable during development, the typical developer using NakurityLang does not need this
 ))
 
 
@@ -205,15 +205,26 @@ class Bytecode:
         # compute default namespace/module path under cwd/runtime/namespaces/@<name>
         ns_path = self._normalize_path("packy", "namespaces", f"@{name}")
 
-        if not os.path.exists(ns_path):
-          print("===============================================================================")
-          print(f"Modules Check Error: occurred at (bytecode) compile time, inside {Path(self.filename).resolve()}")
-          print(f"  With the exception below of: namespace {name} does not exist at default path ({ns_path})")
-          print(f"    Have you tried manually installing the {name} module?")
-          print()
-          print(f"  This error occured at a line with the arguments: {args or '(none)'}")
-          print(f"    Try using your code editor's text finder. Paste the argument above there.")
-          return "exitcode 1"
+        # args is the correct package path (e.g., <standardly-native.funcs()>)
+        # sanitize the argument path (remove surrounding <> and parentheses)
+        clean_pkg = args.strip("<>()").replace(".", os.sep)
+        pkg_path = self._normalize_path("packy", "modules", f"@{clean_pkg}")
+        if not os.path.exists(ns_path) or not os.path.exists(pkg_path):
+            print("===============================================================================")
+            print(f"Modules Check Error: occurred at (bytecode) compile time, inside {Path(self.filename).resolve()}")
+            print(f"  Neither namespace nor package '{name}' exists.")
+            print(f"    Expected paths:")
+            print(f"      Namespace: {ns_path}")
+            print(f"      Package:   {pkg_path}")
+            print(f"  Have you installed or built the {name} package?")
+            print()
+            print(f"  This error occurred at a line with the arguments: {args or '(none)'}")
+            print(f"    Try using your code editor's text finder. Paste the argument above there.")
+            return "exitcode 1"
+
+        # prefer package path if namespace is missing
+        # if not os.path.exists(ns_path) and os.path.exists(pkg_path):
+        #     ns_path = pkg_path # This is stupid af
 
         # record namespace request and args
         bytecode.append(f"<namespace:{name} args[{args}]>")
@@ -235,58 +246,83 @@ class Bytecode:
 
   def compile(self):
     """
-    mode: "interpret" or "compile"
-    - interpret: keep bytecode, runtime will dynamically invoke asm binaries with args
-    - compile: resolve only required namespaces/files, embed necessary machine code
+    mode: "compile"
+    - resolve required namespaces/files
+    - embed necessary machine code
+    - catch missing artifacts early
     """
     if not self.contents:
-      return
+      print("Compile Error: no bytecode to compile. Did you run parse() first?")
+      return "exitcode 1"
 
     compile_code = []
     load_namespaces = []
     namespace_passage = []
     reached_bytecode = False
+    file_resolved = str(Path(self.filename).resolve())
 
     for raw_line in self.contents.split("\n"):
       line = raw_line.strip()
       if not reached_bytecode:
-        if line.startswith(":"):
-          tag = line[1:].strip()
-          if tag == "start-bytecode":
-            reached_bytecode = True
-          continue
-        else:
+        if line.startswith(":") and line[1:].strip() == "start-bytecode":
+          reached_bytecode = True
           continue
 
-      # post start-bytecode
-      if line.startswith("<namespace:"):
-        namespace_passage.append(line)  # keep args for embedding/dispatch
-        continue
-      if line.startswith("<load:"):
-        # format: <load:name path(/abs/path)>
-        # extract name and path
-        # replace only prefixes we know
-        meta = (
-          line.replace("<load:", "", 1)
+        if not line:
+          continue
+
+        if line.startswith("<namespace:"):
+          namespace_passage.append(line)
+          continue
+
+        if line.startswith("<load:"):
+          meta = (
+            line.replace("<load:", "", 1)
               .replace(")>", "", 1)
               .replace("path(", "", 1)
-        )
-        # meta like: "name /abs/path"
-        parts = meta.split(" ", 1)
-        if len(parts) == 2:
-          load_namespaces.append((parts[0], Path(parts[1]).resolve()))
-        continue
-      # modules and other tags are ignored here; a lower-level parser will process them
+            )
+          parts = meta.split(" ", 1)
+          if len(parts) == 2:
+            name, pth = parts
+            resolved_path = Path(pth).resolve()
+            if not resolved_path.exists():
+              print("===============================================================================")
+              print(f"Compile Error: Namespace load path not found")
+              print(f"  Namespace: {name}")
+              print(f"  Expected path: {resolved_path}")
+              print(f"  Occurred at: {file_resolved}")
+              return "exitcode 1"
+            load_namespaces.append((name, resolved_path))
+          else:
+            print("===============================================================================")
+            print(f"Compile Error: malformed load directive '{line}'")
+            print(f"  Occurred at: {file_resolved}")
+            return "exitcode 1"
+          continue
 
-    # compile mode: embed only necessary binaries requested by load_namespaces
+    if not reached_bytecode:
+      print("===============================================================================")
+      print("Compile Error: no ':start-bytecode' tag found. Invalid NPP structure.")
+      print(f"  File: {file_resolved}")
+      return "exitcode 1"
+
+    if not load_namespaces:
+      print("===============================================================================")
+      print("Compile Error: no namespaces found to embed.")
+      print(f"  File: {file_resolved}")
+      return "exitcode 1"
+
     for name, ns_path in load_namespaces:
-      # Each namespace folder is expected to include either:
-      #   - an .nh file exporting symbols (preferred for lazy linkage)
-      #   - or a .so/.o/.bin for direct embedding
-      # We prioritize .nh, then .so, then .bin
       nh = ns_path / f"{name}.nh"
       so = ns_path / f"{name}.so"
       binf = ns_path / f"{name}.bin"
+
+      if not any([nh.exists(), so.exists(), binf.exists()]):
+        print("===============================================================================")
+        print(f"Compile Error: missing artifacts for namespace '{name}'")
+        print(f"  Expected one of: {nh}, {so}, or {binf}")
+        print(f"  Occurred at: {file_resolved}")
+        return "exitcode 1"
 
       if nh.exists():
         with open(nh, "r", encoding="utf-8") as f:
@@ -299,8 +335,7 @@ class Bytecode:
       if so.exists():
         with open(so, "rb") as f:
           content = f.read()
-        # embed binary blob as base64 or hex; below uses hex for simplicity
-        blob = content.hex()
+          blob = content.hex()
         compile_code.append(f"start[namespace<{name}>]")
         compile_code.append(f"embed[so-hex:{blob}]")
         compile_code.append("end")
@@ -309,16 +344,19 @@ class Bytecode:
       if binf.exists():
         with open(binf, "rb") as f:
           content = f.read()
-        blob = content.hex()
+          blob = content.hex()
         compile_code.append(f"start[namespace<{name}>]")
         compile_code.append(f"embed[bin-hex:{blob}]")
         compile_code.append("end")
         continue
 
-      # if none exists, emit a compile-time warning but continue lazily
-      compile_code.append(f"warn[namespace<{name}> missing artifacts at {ns_path}]")
+    # sanity check header before embedding
+    if "compiled: false" not in self.header:
+      print("===============================================================================")
+      print("Compile Error: header mismatch or already compiled. Cannot recompile.")
+      print(f"  File: {file_resolved}")
+      return "exitcode 1"
 
-    # attach embedded namespaces block after header
     embedded_block = "\n".join(compile_code)
     header = self.header.replace("compiled: false", "compiled: true", 1)
 
@@ -328,3 +366,13 @@ class Bytecode:
       1
     )
     self.header = header
+
+    # Final sanity check
+    if "[embedded-namespaces]" not in self.contents:
+      print("===============================================================================")
+      print("Compile Error: embedding failed — no [embedded-namespaces] block found.")
+      print(f"  File: {file_resolved}")
+      return "exitcode 1"
+
+    print(f"✅ Successfully compiled {self.filename}")
+    return "exitcode 0"
