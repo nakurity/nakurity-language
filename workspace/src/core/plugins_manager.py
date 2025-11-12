@@ -51,6 +51,22 @@ class PluginManager:
         self._discovered_plugin_files: List[str] = []
         self._imported_plugin_files: Dict[str, bool] = {}
 
+        if os.path.isdir(self.reverie_dir):
+            self.autorunfiles = self.findpyfiles(self.reveriedir)
+        else:
+            self.autorunfiles = []
+
+    def run_autorun(self):
+        for path in self.autorunfiles:
+            self.importand_register(path)
+            modkey = self.modulekeyfor_file(path)
+            mod = self.registry.loadedmodules.get(modkey)
+            if mod and hasattr(mod, "autorun"):
+                try:
+                    mod.autorun(self)
+                except Exception as e:
+                    print(f"[autorun error] {path}: {e}")
+
     def _abs(self, rel: str) -> str:
         return os.path.join(self.root_dir, rel)
 
