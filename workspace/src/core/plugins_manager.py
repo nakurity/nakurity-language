@@ -1,15 +1,15 @@
-# masha_lang/core/plugin_manager.py
+# src/core/plugin_manager.py
 import importlib
 import json
 import os
-from typing import Any, Dict, List, Optional
+import sys
+from typing import Any, Dict, List, Optional, Tuple
 from .events import EventBus
 
 class CapabilityRegistry:
     """
-    Central registry for capabilities and symbol providers.
-    It stores only metadata and import targets; the plugin modules are
-    imported lazily on first use.
+    Stores metadata to import factories lazily.
+    Filled by scanning plugin manifests on-demand.
     """
     def __init__(self):
         self.parsers_by_ext: Dict[str, Dict] = {}
@@ -36,58 +36,126 @@ class CapabilityRegistry:
 
 class PluginManager:
     """
-    The only "built-in". Loads config, registers plugin metadata, and resolves
-    capabilities lazily when events request them.
+    The only built-in: config, event bus, lazy manifest scanning, capability resolution.
     """
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, bare: bool = False):
         self.root_dir = root_dir
         self.event_bus = EventBus()
         self.registry = CapabilityRegistry()
         self.config: Dict[str, Any] = {}
+        self.plugins_dirs: List[str] = []
+        self.modules_dir: Optional[str] = None
+        self.needy_plugins_dir: Optional[str] = None
+        self.enable_needy = not bare
+        self._scanned_dirs: Dict[str, bool] = {}
+
+    def _abs(self, rel: str) -> str:
+        return os.path.join(self.root_dir, rel)
 
     def load_config(self):
-        cfg_path = os.path.join(self.root_dir, ".masha", "config.json")
+        cfg_path = self._abs("static/.masha/config.json")
         with open(cfg_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
 
-    def register_from_config(self):
-        # Register parsers by file extension
-        for ext, info in self.config.get("parsers", {}).items():
-            self.registry.register_parser(ext, info["module"], info["factory"])
+        paths = self.config.get("paths", {})
+        plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
+        modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
+        needy_dir  = self._abs(paths.get("needy_plugins_dir", "static/.needy/plugins"))
 
-        # Register symbol providers (namespaces like 'print')
-        for sym, info in self.config.get("symbols", {}).items():
-            self.registry.register_symbol(sym, info["module"], info["factory"])
+        self.plugins_dirs = [plugins_dir]
+        self.modules_dir = modules_dir if os.path.isdir(modules_dir) else None
+        self.needy_plugins_dir = needy_dir if os.path.isdir(needy_dir) else None
 
-        # Register executors for AST node kinds
-        for kind, providers in self.config.get("executors", {}).items():
-            for info in providers:
-                self.registry.register_executor(kind, info["module"], info["factory"])
+        # Honor needy auto_enable unless :bare overrides it
+        needy_cfg = self.config.get("needy", {})
+        auto_enable = bool(needy_cfg.get("auto_enable", True))
+        self.enable_needy = auto_enable and self.enable_needy
 
-        # Optional: allow plugins to attach to events at import time (lazy)
-        # The config can list "boot" plugins to bind event handlers
-        for boot in self.config.get("boot", []):
-            module = importlib.import_module(boot["module"])
-            getattr(module, boot["init_fn"])(self)
+        # sys.path augmentation so plugin modules can be imported
+        # Add static as a package root if needed
+        static_root = self._abs("static")
+        for p in [static_root, self.modules_dir]:
+            if p and p not in sys.path and os.path.isdir(p):
+                sys.path.append(p)
 
-    # Lazy resolution APIs used by the runner:
+        # Include needy plugins directory in discovery set unless bare
+        if self.enable_needy and self.needy_plugins_dir:
+            self.plugins_dirs.append(self.needy_plugins_dir)
+
+    def _iter_plugin_manifests(self) -> List[Tuple[str, Dict]]:
+        manifests = []
+        for base in self.plugins_dirs:
+            if not os.path.isdir(base):
+                continue
+            if self._scanned_dirs.get(base):
+                continue
+            for entry in os.listdir(base):
+                plug_dir = os.path.join(base, entry)
+                if not os.path.isdir(plug_dir):
+                    continue
+                manifest_path = os.path.join(plug_dir, "plugin.json")
+                if os.path.isfile(manifest_path):
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as f:
+                            mf = json.load(f)
+                        manifests.append((plug_dir, mf))
+                    except Exception:
+                        # ignore malformed manifest
+                        pass
+            self._scanned_dirs[base] = True
+        return manifests
+
+    def _index_capabilities_for(self, capability: str, key: str):
+        """
+        capability: 'parser' | 'symbol' | 'executor'
+        key: extension for parser, symbol name for symbol, ast kind for executor
+        """
+        for _, mf in self._iter_plugin_manifests():
+            mod = mf.get("module")  # must be importable (e.g., "masha.plugins.print_builtin")
+            caps = mf.get("capabilities", {})
+            if capability == "parser":
+                for item in caps.get("parsers", []):
+                    if item.get("ext") == key:
+                        self.registry.register_parser(item["ext"], mod, item["factory"])
+                        return
+            elif capability == "symbol":
+                for item in caps.get("symbols", []):
+                    if item.get("name") == key:
+                        self.registry.register_symbol(item["name"], mod, item["factory"])
+                        return
+            elif capability == "executor":
+                for item in caps.get("executors", []):
+                    if item.get("kind") == key:
+                        self.registry.register_executor(item["kind"], mod, item["factory"])
+                        # do not return; allow multiple executors
+
+    # Lazy resolution APIs
 
     def get_parser_for_extension(self, ext: str):
         meta = self.registry.parsers_by_ext.get(ext)
         if not meta:
+            self._index_capabilities_for("parser", ext)
+            meta = self.registry.parsers_by_ext.get(ext)
+        if not meta:
             return None
         factory = self.registry._import_factory(meta["module"], meta["factory"])
-        return factory(self)  # pass manager for context
+        return factory(self)
 
     def resolve_symbol(self, symbol_name: str):
         meta = self.registry.symbol_providers.get(symbol_name)
+        if not meta:
+            self._index_capabilities_for("symbol", symbol_name)
+            meta = self.registry.symbol_providers.get(symbol_name)
         if not meta:
             return None
         factory = self.registry._import_factory(meta["module"], meta["factory"])
         return factory(self)
 
     def get_executors_for_kind(self, kind: str):
-        metas = self.registry.executors_by_kind.get(kind, [])
+        metas = self.registry.executors_by_kind.get(kind)
+        if not metas:
+            self._index_capabilities_for("executor", kind)
+            metas = self.registry.executors_by_kind.get(kind, [])
         executors = []
         for meta in metas:
             factory = self.registry._import_factory(meta["module"], meta["factory"])
