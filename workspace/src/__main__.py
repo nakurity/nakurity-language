@@ -2,6 +2,7 @@
 import os
 import sys
 from .core.plugins_manager import PluginManager
+from nakuritycore.utils.tracer import TracerConfig, Tracer
 
 def main():
     root_dir = os.getcwd()
@@ -15,7 +16,10 @@ def main():
         print("No runner module registered. Did you enable .needy/modules?")
         sys.exit(1)
 
-    runner.run(pm, sys.argv)
+    runner(pm, sys.argv)
 
 if __name__ == "__main__":
     main()
+    tracy = Tracer(TracerConfig(
+        name="Tracy! the neighbor's kid!"
+    ))

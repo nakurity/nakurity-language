@@ -1,6 +1,7 @@
 # static/.needy/modules/runner.py
 import sys
-from .core.types import SourceFile
+import os
+from src.core.types import SourceFile
 
 def read_source(path: str) -> SourceFile:
     with open(path, "r", encoding="utf-8") as f:
@@ -14,13 +15,14 @@ def run(pm, argv):
         sys.exit(1)
 
     # handle :bare, download, etc. here
-    if argv[1] == "download":
-        from . import download
-        return download.handle(pm.root_dir, argv[2:] if len(argv) > 2 else [])
+    # if argv[1] == "download":
+    #     from . import download
+    #     return download.handle(pm.root_dir, argv[2:] if len(argv) > 2 else [])
 
     bare = any(arg == ":bare" for arg in argv)
     if bare:
-        pm.disable_needy()
+        pm.autoload_the_needies = False
+
 
     src_path = next((a for a in argv[1:] if not a.startswith(":")), None)
     if not src_path:
