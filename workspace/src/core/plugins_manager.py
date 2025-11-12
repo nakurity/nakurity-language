@@ -51,11 +51,7 @@ class PluginManager:
         # Internal tracking
         self._discovered_plugin_files: List[str] = []
         self._imported_plugin_files: Dict[str, bool] = {}
-
-        if os.path.isdir(self.reverie_dir):
-            self.autorunfiles = self.findpyfiles(self.reverie_dir)
-        else:
-            self.autorunfiles = []
+        self.autorunfiles = []
 
     def run_autorun(self):
         for path in self.autorunfiles:
@@ -99,6 +95,9 @@ class PluginManager:
             needy_files = self._find_py_files(self.needy_plugins_dir)
             for path in needy_files:
                 self._import_and_register(path)
+
+        if os.path.isdir(self.reverie_dir):
+            self.autorunfiles = self.findpyfiles(self.reverie_dir)
 
     def _find_py_files(self, base_dir: str) -> List[str]:
         py_files = []
