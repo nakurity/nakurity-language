@@ -1,16 +1,12 @@
 # src/core/plugin_manager.py
-import importlib
+import importlib.util
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from .events import EventBus
 
 class CapabilityRegistry:
-    """
-    Stores metadata to import factories lazily.
-    Filled by scanning plugin manifests on-demand.
-    """
     def __init__(self):
         self.parsers_by_ext: Dict[str, Dict] = {}
         self.symbol_providers: Dict[str, Dict] = {}
@@ -29,25 +25,31 @@ class CapabilityRegistry:
         )
 
     def _import_factory(self, module_path: str, factory_name: str):
-        if module_path not in self.loaded_modules:
-            self.loaded_modules[module_path] = importlib.import_module(module_path)
-        mod = self.loaded_modules[module_path]
+        # module_path is a logical key we assign (e.g., file path)
+        mod = self.loaded_modules.get(module_path)
+        if mod is None:
+            # This should not happen if registration only occurs post-import
+            raise RuntimeError(f"Module not imported for factory lookup: {module_path}")
         return getattr(mod, factory_name)
 
 class PluginManager:
     """
-    The only built-in: config, event bus, lazy manifest scanning, capability resolution.
+    Core: config, event bus, lazy .py plugin import, capability resolution.
     """
     def __init__(self, root_dir: str, bare: bool = False):
         self.root_dir = root_dir
         self.event_bus = EventBus()
         self.registry = CapabilityRegistry()
         self.config: Dict[str, Any] = {}
-        self.plugins_dirs: List[str] = []
+
+        self.plugins_dir: Optional[str] = None
         self.modules_dir: Optional[str] = None
         self.needy_plugins_dir: Optional[str] = None
         self.enable_needy = not bare
-        self._scanned_dirs: Dict[str, bool] = {}
+
+        # Internal tracking
+        self._discovered_plugin_files: List[str] = []
+        self._imported_plugin_files: Dict[str, bool] = {}
 
     def _abs(self, rel: str) -> str:
         return os.path.join(self.root_dir, rel)
@@ -58,104 +60,118 @@ class PluginManager:
             self.config = json.load(f)
 
         paths = self.config.get("paths", {})
-        plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
-        modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
-        needy_dir  = self._abs(paths.get("needy_plugins_dir", "static/.needy/plugins"))
+        self.plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
+        self.modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
+        self.needy_plugins_dir = self._abs(paths.get("needy_plugins_dir", "static/.needy/plugins"))
 
-        self.plugins_dirs = [plugins_dir]
-        self.modules_dir = modules_dir if os.path.isdir(modules_dir) else None
-        self.needy_plugins_dir = needy_dir if os.path.isdir(needy_dir) else None
-
-        # Honor needy auto_enable unless :bare overrides it
         needy_cfg = self.config.get("needy", {})
         auto_enable = bool(needy_cfg.get("auto_enable", True))
         self.enable_needy = auto_enable and self.enable_needy
 
-        # sys.path augmentation so plugin modules can be imported
-        # Add static as a package root if needed
-        static_root = self._abs("static")
-        for p in [static_root, self.modules_dir]:
-            if p and p not in sys.path and os.path.isdir(p):
-                sys.path.append(p)
+        # sys.path: allow shared modules under static/.parsie/modules
+        if self.modules_dir and os.path.isdir(self.modules_dir) and self.modules_dir not in sys.path:
+            sys.path.append(self.modules_dir)
 
-        # Include needy plugins directory in discovery set unless bare
-        if self.enable_needy and self.needy_plugins_dir:
-            self.plugins_dirs.append(self.needy_plugins_dir)
+        # Discover plugin files up-front (without importing)
+        if self.plugins_dir and os.path.isdir(self.plugins_dir):
+            self._discovered_plugin_files += self._find_py_files(self.plugins_dir)
 
-    def _iter_plugin_manifests(self) -> List[Tuple[str, Dict]]:
-        manifests = []
-        for base in self.plugins_dirs:
-            if not os.path.isdir(base):
-                continue
-            if self._scanned_dirs.get(base):
-                continue
-            for entry in os.listdir(base):
-                plug_dir = os.path.join(base, entry)
-                if not os.path.isdir(plug_dir):
-                    continue
-                manifest_path = os.path.join(plug_dir, "plugin.json")
-                if os.path.isfile(manifest_path):
-                    try:
-                        with open(manifest_path, "r", encoding="utf-8") as f:
-                            mf = json.load(f)
-                        manifests.append((plug_dir, mf))
-                    except Exception:
-                        # ignore malformed manifest
-                        pass
-            self._scanned_dirs[base] = True
-        return manifests
+        # Needy plugins auto-load unless :bare
+        if self.enable_needy and self.needy_plugins_dir and os.path.isdir(self.needy_plugins_dir):
+            needy_files = self._find_py_files(self.needy_plugins_dir)
+            for path in needy_files:
+                self._import_and_register(path)
 
-    def _index_capabilities_for(self, capability: str, key: str):
-        """
-        capability: 'parser' | 'symbol' | 'executor'
-        key: extension for parser, symbol name for symbol, ast kind for executor
-        """
-        for _, mf in self._iter_plugin_manifests():
-            mod = mf.get("module")  # must be importable (e.g., "masha.plugins.print_builtin")
-            caps = mf.get("capabilities", {})
-            if capability == "parser":
-                for item in caps.get("parsers", []):
-                    if item.get("ext") == key:
-                        self.registry.register_parser(item["ext"], mod, item["factory"])
-                        return
-            elif capability == "symbol":
-                for item in caps.get("symbols", []):
-                    if item.get("name") == key:
-                        self.registry.register_symbol(item["name"], mod, item["factory"])
-                        return
-            elif capability == "executor":
-                for item in caps.get("executors", []):
-                    if item.get("kind") == key:
-                        self.registry.register_executor(item["kind"], mod, item["factory"])
-                        # do not return; allow multiple executors
+    def _find_py_files(self, base_dir: str) -> List[str]:
+        py_files = []
+        for root, _, files in os.walk(base_dir):
+            for fn in files:
+                if fn.endswith(".py") and not fn.startswith("_"):
+                    py_files.append(os.path.join(root, fn))
+        return py_files
 
-    # Lazy resolution APIs
+    def _module_key_for_file(self, file_path: str) -> str:
+        # Use a stable key for registry.loaded_modules and factory lookup
+        return os.path.relpath(file_path, self.root_dir).replace("\\", "/")
+
+    def _import_and_register(self, file_path: str):
+        if self._imported_plugin_files.get(file_path):
+            return  # already imported
+        mod_key = self._module_key_for_file(file_path)
+
+        spec = importlib.util.spec_from_file_location(mod_key, file_path)
+        if spec is None or spec.loader is None:
+            return
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            # If a plugin fails to import, skip it quietly
+            return
+
+        # Store module for factory lookups
+        self.registry.loaded_modules[mod_key] = mod
+        self._imported_plugin_files[file_path] = True
+
+        # Require a register(pm) function
+        register_fn = getattr(mod, "register", None)
+        if callable(register_fn):
+            # The plugin calls pm.registry.register_xxx(...)
+            register_fn(self, module_key=mod_key)
+        # If there's no register, treat as non-plugin
+
+    # Lazy resolution: import plugins only when needed
+
+    def _ensure_parsers_loaded_for_ext(self, ext: str):
+        if ext in self.registry.parsers_by_ext:
+            return
+        # Try all not-yet-imported plugins
+        for path in list(self._discovered_plugin_files):
+            if not self._imported_plugin_files.get(path):
+                self._import_and_register(path)
+                # Early exit if parser got registered
+                if ext in self.registry.parsers_by_ext:
+                    return
+
+    def _ensure_symbol_loaded(self, name: str):
+        if name in self.registry.symbol_providers:
+            return
+        for path in list(self._discovered_plugin_files):
+            if not self._imported_plugin_files.get(path):
+                self._import_and_register(path)
+                if name in self.registry.symbol_providers:
+                    return
+
+    def _ensure_executors_loaded_for_kind(self, kind: str):
+        if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
+            return
+        for path in list(self._discovered_plugin_files):
+            if not self._imported_plugin_files.get(path):
+                self._import_and_register(path)
+                if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
+                    return
+
+    # Public APIs used by the runner:
 
     def get_parser_for_extension(self, ext: str):
+        self._ensure_parsers_loaded_for_ext(ext)
         meta = self.registry.parsers_by_ext.get(ext)
-        if not meta:
-            self._index_capabilities_for("parser", ext)
-            meta = self.registry.parsers_by_ext.get(ext)
         if not meta:
             return None
         factory = self.registry._import_factory(meta["module"], meta["factory"])
         return factory(self)
 
     def resolve_symbol(self, symbol_name: str):
+        self._ensure_symbol_loaded(symbol_name)
         meta = self.registry.symbol_providers.get(symbol_name)
-        if not meta:
-            self._index_capabilities_for("symbol", symbol_name)
-            meta = self.registry.symbol_providers.get(symbol_name)
         if not meta:
             return None
         factory = self.registry._import_factory(meta["module"], meta["factory"])
         return factory(self)
 
     def get_executors_for_kind(self, kind: str):
-        metas = self.registry.executors_by_kind.get(kind)
-        if not metas:
-            self._index_capabilities_for("executor", kind)
-            metas = self.registry.executors_by_kind.get(kind, [])
+        self._ensure_executors_loaded_for_kind(kind)
+        metas = self.registry.executors_by_kind.get(kind, [])
         executors = []
         for meta in metas:
             factory = self.registry._import_factory(meta["module"], meta["factory"])
