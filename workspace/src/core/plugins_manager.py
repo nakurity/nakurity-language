@@ -46,13 +46,14 @@ class PluginManager:
         self.modules_dir: Optional[str] = None
         self.needy_plugins_dir: Optional[str] = None
         self.enable_needy = not bare
+        self.reverie_dir: Optional[str] = None
 
         # Internal tracking
         self._discovered_plugin_files: List[str] = []
         self._imported_plugin_files: Dict[str, bool] = {}
 
         if os.path.isdir(self.reverie_dir):
-            self.autorunfiles = self.findpyfiles(self.reveriedir)
+            self.autorunfiles = self.findpyfiles(self.reverie_dir)
         else:
             self.autorunfiles = []
 
@@ -79,6 +80,7 @@ class PluginManager:
         self.plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
         self.modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
         self.needy_plugins_dir = self._abs(paths.get("needy_plugins_dir", "static/.needy/plugins"))
+        self.reverie_dir = self._abs(paths.get("reverie_dir", "static/.reverie/autorun"))
 
         needy_cfg = self.config.get("needy", {})
         auto_enable = bool(needy_cfg.get("auto_enable", True))
