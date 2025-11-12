@@ -37,3 +37,8 @@ def run(pm, argv):
             if ex.can_handle(node):
                 ex.execute(node)
                 break
+
+
+# static/.needy/modules/runner.py
+def register(pm, module_key=None):
+    pm.registry.register_symbol("__runner__", module_key, "run")
