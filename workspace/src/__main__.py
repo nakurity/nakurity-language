@@ -14,6 +14,7 @@ def main():
     root_dir = os.getcwd()
     pm = PluginManager(root_dir=root_dir)
     pm.load_config()
+    pm.run_autorun()   # autorun modules handle flags, setup, etc.
 
     # Hand off to a runner plugin/module
     runner = pm.resolve_symbol("__runner__")
