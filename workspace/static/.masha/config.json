@@ -3,7 +3,8 @@
   "paths": {
     "plugins_dir": "static/.masha/plugins",
     "modules_dir": "static/.parsie/modules",
-    "needy_plugins_dir": "static/.needy/plugins"
+    "needy_plugins_dir": "static/.needy/plugins",
+    "reverie_dir": "static/.reverie/autorun"
   },
   "needy": {
     "auto_enable": true
