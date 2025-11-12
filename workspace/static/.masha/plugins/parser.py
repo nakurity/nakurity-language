@@ -38,6 +38,10 @@ class SimpleParser:
                 # Unknown symbol: emit a generic node to be handled by whoever registers it
                 nodes.append(ASTNode(kind="UnknownStatement", data={"tokens": tokens}))
         return nodes
+        
+def create_parser(pm):
+    return _SimpleParser(pm)
 
-def register(pm):
-    return SimpleParser(pm)
+def register(pm, module_key: str):
+    # Register the parser for .masha extension
+    pm.registry.registerparser(ext=".masha", modulepath=modulekey, factoryname="create_parser")
