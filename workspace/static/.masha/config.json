@@ -1,11 +1,12 @@
+// static/.masha/config.json
 {
   "package_version": "0.1.0",
-  "static_dirs": {
-    "plugins": "static/.masha/plugins",
-    "modules": "static/.parsie/modules"
+  "paths": {
+    "plugins_dir": "static/.masha/plugins",
+    "modules_dir": "static/.parsie/modules",
+    "needy_plugins_dir": "static/.needy/plugins"
   },
   "needy": {
-    "plugins_dir": ".needy/plugins",
     "auto_enable": true
   }
 }
