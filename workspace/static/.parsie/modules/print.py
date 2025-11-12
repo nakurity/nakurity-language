@@ -1,5 +1,5 @@
 # masha_lang/plugins/print_builtin.py
-from core.types import ASTNode
+from .core.types import ASTNode
 
 class PrintSymbolProvider:
     def __init__(self, pm):
