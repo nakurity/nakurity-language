@@ -39,5 +39,5 @@ class SimpleParser:
                 nodes.append(ASTNode(kind="UnknownStatement", data={"tokens": tokens}))
         return nodes
 
-def create_parser(pm):
+def register(pm):
     return SimpleParser(pm)
