@@ -1,0 +1,30 @@
+// masha_lang/.masha/config.json
+{
+  "file_extensions": [".masha"],
+  "parsers": {
+    ".masha": {
+      "module": "plugins.parser_simple",
+      "factory": "create_parser"
+    }
+  },
+  "symbols": {
+    "print": {
+      "module": "plugins.print_builtin",
+      "factory": "create_symbol_provider"
+    }
+  },
+  "executors": {
+    "PrintStatement": [
+      {
+        "module": "plugins.print_builtin",
+        "factory": "create_executor"
+      }
+    ]
+  },
+  "boot": [
+    {
+      "module": "plugins.parser_simple",
+      "init_fn": "attach_events"
+    }
+  ]
+}
