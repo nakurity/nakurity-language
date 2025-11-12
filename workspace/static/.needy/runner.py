@@ -2,6 +2,12 @@
 import sys
 from core.types import SourceFile
 
+def read_source(path: str) -> SourceFile:
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    ext = os.path.splitext(path)[1]
+    return SourceFile(path=path, content=content, extension=ext)
+
 def run(pm, argv):
     if len(argv) < 2:
         print("Usage: nakurity-lang <source_file> [:bare] | nakurity-lang download [static.zip]")
