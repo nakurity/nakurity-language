@@ -1,6 +1,6 @@
 # static/.needy/modules/runner.py
 import sys
-from core.types import SourceFile
+from .core.types import SourceFile
 
 def read_source(path: str) -> SourceFile:
     with open(path, "r", encoding="utf-8") as f:
