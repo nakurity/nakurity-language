@@ -2,13 +2,6 @@
 import os
 import sys
 from core.plugin_manager import PluginManager
-from core.types import SourceFile
-
-def read_source(path: str) -> SourceFile:
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-    ext = os.path.splitext(path)[1]
-    return SourceFile(path=path, content=content, extension=ext)
 
 def main():
     root_dir = os.getcwd()
