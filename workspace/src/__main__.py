@@ -1,7 +1,7 @@
 # masha_lang/__main__.py
 import os
 import sys
-from core.plugin_manager import PluginManager
+from .core.plugin_manager import PluginManager
 
 def main():
     root_dir = os.getcwd()
