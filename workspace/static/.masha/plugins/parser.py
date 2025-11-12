@@ -1,6 +1,6 @@
 # masha_lang/plugins/parser_simple.py
 from typing import List
-from core.types import ASTNode, SourceFile
+from .core.types import ASTNode, SourceFile
 
 def attach_events(pm):
     # If you want event-driven parsing or extra hooks, bind them here.
