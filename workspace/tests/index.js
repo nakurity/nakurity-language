@@ -32,6 +32,8 @@ const { Information } = require('./information');
       // Add only what nakie files need:
       // { from: 'src/runtime.py' },
       // { from: 'static/config.yaml' },
+
+      { from: 'src/' }
     ]
   });
 
@@ -89,3 +91,4 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
