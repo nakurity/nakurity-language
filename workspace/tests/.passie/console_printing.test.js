@@ -3,7 +3,7 @@
 
 module.exports = function (info) {
   // Use sandboxed workie resource (e.g., JSON config or helper adapter)
-  const cfg = info.require('masha-files/hello-world.masha');
+  const cfg = info.require('adapters/hello-world-masha.js');
 
   // Load nakie expectations
   const nakie = info.expect('print_to_console', { mode: 'strict' });
