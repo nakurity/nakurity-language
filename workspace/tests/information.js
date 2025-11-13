@@ -48,19 +48,42 @@ class Information {
 
     let exported;
     if (ext === '.js') {
-      // Execute in vm with no access to Node builtins except a very limited module shim
-      const code = fs.readFileSync(fullPath, 'utf8');
-      const sandbox = {
-        module: { exports: {} },
-        exports: {},
-        console: this.logger,
-        // No direct require; we can offer a very narrow stable API if needed
-      };
-      vm.createContext(sandbox, { name: `workie:${relPath}` });
-      const script = new vm.Script(code, { filename: fullPath });
-      script.runInContext(sandbox);
-      exported = sandbox.module.exports || sandbox.exports;
-    } else if (ext === '.json') {
+  const code = fs.readFileSync(fullPath, 'utf8');
+
+  // build a normal require that resolves relative to .workie
+  const safeRequire = (mod) => {
+    // allow Node builtins
+    if (require('module').builtinModules.includes(mod)) {
+      return require(mod);
+    }
+
+    // allow relative imports only inside .workie
+    if (mod.startsWith('.') || path.isAbsolute(mod)) {
+      const target = path.resolve(path.dirname(fullPath), mod);
+      if (!target.startsWith(this.paths.workieDir)) {
+        throw new Error(`Blocked require: ${mod} is outside .workie`);
+      }
+      return this.require(path.relative(this.paths.workieDir, target));
+    }
+
+    throw new Error(`Blocked require: external module "${mod}"`);
+  };
+
+  const sandbox = {
+    module: { exports: {} },
+    exports: {},
+    console: this.logger,
+    require: safeRequire,
+    __dirname: path.dirname(fullPath),
+    __filename: fullPath,
+  };
+
+  vm.createContext(sandbox, { name: `workie:${relPath}` });
+  const script = new vm.Script(code, { filename: fullPath });
+  script.runInContext(sandbox);
+
+  exported = sandbox.module.exports || sandbox.exports;
+} else if (ext === '.json') {
       const raw = fs.readFileSync(fullPath, 'utf8');
       exported = JSON.parse(raw);
     } else {
@@ -218,3 +241,4 @@ function createNakieAPI({ sfs, info, options }) {
 }
 
 module.exports = { Information };
+
