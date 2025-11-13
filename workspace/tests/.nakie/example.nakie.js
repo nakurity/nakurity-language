@@ -6,6 +6,7 @@
 
 module.exports = {
   // Optional helpers for tests can be exported
+  Nakie
 };
 
 Nakie.defineRule('has-api-key', (ctx) => {
