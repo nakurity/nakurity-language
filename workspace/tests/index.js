@@ -33,7 +33,24 @@ const { Information } = require('./information');
       // { from: 'src/runtime.py' },
       // { from: 'static/config.yaml' },
 
-      { from: 'src/' }
+      // core files
+      { from: 'src/__main__.py' },
+      { from: 'src/core/events.py' },
+      { from: 'src/core/plugins_manager.py' },
+      { from: 'src/core/types.py' },
+
+      // static files
+      { from: 'static/.masha/config.json' },
+      { from: 'static/.masha/plugins/parser.py' },
+
+      { from: 'static/.needy/modules/runner.py' },
+      
+      { from: 'static/.parsie/modules/import.py' },
+      { from: 'static/.parsie/modules/print.py' },
+
+      { from: 'static/.reverie/autorun/args.py' },
+      
+      { from: 'static/shared/manager.py' }
     ]
   });
 
@@ -91,4 +108,5 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
 
