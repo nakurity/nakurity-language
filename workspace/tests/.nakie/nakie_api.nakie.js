@@ -1,4 +1,4 @@
-// tests/.nakie/print_to_console.nakie.js
+// tests/.nakie/nakie_api.nakie.js
 'use strict';
 
 // Export nothing; we rely on the Nakie API in the context.
