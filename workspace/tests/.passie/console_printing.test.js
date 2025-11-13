@@ -6,7 +6,7 @@ module.exports = function (info) {
   const cfg = info.require('adapters/hello-world-masha.js');
 
   // Load nakie expectations
-  const nakie = info.expect('print_to_console', { mode: 'strict' });
+  const nakie = info.expect('nakie_api', { mode: 'strict' });
 
   // Register test steps
   info.register('should print hello world', async () => {
