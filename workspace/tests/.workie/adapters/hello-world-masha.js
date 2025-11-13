@@ -17,7 +17,7 @@ module.exports = (() => {
     encoding: 'utf8',
   });
 
-  const stdout = result.stdout?.trim() || '';
+  const stdout = result.stdout?.trim() || undefined;
   const stderr = result.stderr?.trim() || '';
 
   // Optional: log what happened
@@ -25,7 +25,7 @@ module.exports = (() => {
 
   // Return what the language actually printed
   return {
-    output: stdout | undefined,
+    output: stdout,
     exitCode: result.status,
     ok: result.status === 0 && /hello world/i.test(stdout),
   };
