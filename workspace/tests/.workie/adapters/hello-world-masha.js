@@ -25,7 +25,7 @@ module.exports = (() => {
 
   // Return what the language actually printed
   return {
-    output: stdout,
+    output: stdout | undefined,
     exitCode: result.status,
     ok: result.status === 0 && /hello world/i.test(stdout),
   };
