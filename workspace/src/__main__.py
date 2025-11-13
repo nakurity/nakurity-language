@@ -4,6 +4,17 @@ import sys
 from .core.plugins_manager import PluginManager
 from nakuritycore.utils.tracer import TracerConfig, Tracer
 
+from nakuritycore.utils.tracer import TracerConfig, Tracer
+
+tracy = Tracer(TracerConfig(
+    project_root=os.getcwd(),
+    name="Tracy! the neighbor's kid!",
+    log_file_base="nakurity-lang.log",
+    include_paths=["src", "static"]
+))
+
+sys.settrace(tracy.trace)
+
 def main():
     root_dir = os.getcwd()
     pm = PluginManager(root_dir=root_dir)
@@ -20,6 +31,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    tracy = Tracer(TracerConfig(
-        name="Tracy! the neighbor's kid!"
-    ))
