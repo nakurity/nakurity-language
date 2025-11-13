@@ -1,0 +1,10 @@
+import [Outerlands]
+
+outerlands:module.create [below]
+  .type python
+  .name example_file
+  .parent cwd()
+
+print("hello world")
+
+[finished-definition]

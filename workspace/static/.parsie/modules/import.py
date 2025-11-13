@@ -6,10 +6,14 @@ class ImportSymbolProvider:
 
     def tokens_to_ast(self, tokens):
         # Example syntax: import [PrintStatement]
-        payload = " ".join(tokens[1:])
-        # Strip surrounding quotes if present
-        if len(payload) >= 2 and payload.startswith('[') and payload.endswith(']'):
-            payload = payload[1:-1]
+        if not tokens:
+            payload = ""
+        else:
+            # Join all remaining tokens as the payload
+            payload = " ".join(tokens)
+            # Strip surrounding quotes if present
+            if len(payload) >= 2 and payload.startswith('[') and payload.endswith(']'):
+                payload = payload[1:-1]
         return ASTNode(kind="import", data={"module": payload})
 
 class ImportExecutor:

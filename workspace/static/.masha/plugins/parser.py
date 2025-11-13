@@ -191,9 +191,11 @@ class SimpleParser:
 
     def parse(self, source: SourceFile):
         nodes = []
+        line_index = 0
 
         for line in source.content.splitlines():
             if not line.strip():
+                line_index = line_index + 1
                 continue
 
             tokens = self.tokenize_line(line)
@@ -205,6 +207,9 @@ class SimpleParser:
             def resolved():
                 try:
                     node = sym_provider.tokens_to_ast(tokens)
+                    if node.kind == "Outerlands":
+                        node = sym_provider.tokens_to_ast(tokens, source.content.splitlines(), line_index)
+
                     nodes.append(node)
                 except Exception:
                     pass
@@ -217,6 +222,7 @@ class SimpleParser:
 
             if sym_provider:
                 resolved()
+                line_index = line_index + 1
                 continue
 
             # Unknown symbol fallback
