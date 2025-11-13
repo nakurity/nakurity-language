@@ -95,3 +95,21 @@ class ParsiePluginManager:
             factory = getattr(mod, meta["factory"])
             result.append(factory(self))
         return result
+
+    def get_symbol_provider(self, symbol_name: str):
+        """Get a symbol provider by name."""
+        if symbol_name not in self.registry.symbol_providers:
+            # Try loading it
+            for path in self._discovered_files:
+                if not self._imported.get(path):
+                    self._import(path)
+                    if symbol_name in self.registry.symbol_providers:
+                        break
+        
+        meta = self.registry.symbol_providers.get(symbol_name)
+        if not meta:
+            return None
+        
+        mod = self.registry.loaded_modules[meta["module"]]
+        factory = getattr(mod, meta["factory"])
+        return factory(self)

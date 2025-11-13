@@ -200,22 +200,24 @@ class SimpleParser:
             head = tokens[0]
 
             # Try resolve symbol via core
-            sym_provider = self.pm._resolve_symbol(self.pm._abs(f"static/.parsie/modules/{head}"))
+            sym_provider = self.pm.resolve_symbol(self.pm._abs(f"static/.parsie/modules/{head}"))
+
+            def resolved():
+                try:
+                    node = sym_provider.tokens_to_ast(tokens)
+                    nodes.append(node)
+                except Exception:
+                    pass
 
             # Try parsie-based fallback
             if not sym_provider:
                 # Parsie symbols are in its own registry
-                parser_executors = self.parsie.get_executors_for_kind(head)
-                if parser_executors:
-                    sym_provider = parser_executors[0]  # pick first match
+                sym_provider = self.parsie.get_symbol_provider(head)
+                resolved()
 
             if sym_provider:
-                try:
-                    node = sym_provider.tokens_to_ast(tokens)
-                    nodes.append(node)
-                    continue
-                except Exception:
-                    pass
+                resolved()
+                continue
 
             # Unknown symbol fallback
             nodes.append(ASTNode(kind="UnknownStatement", data={"tokens": tokens}))

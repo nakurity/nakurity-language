@@ -38,7 +38,7 @@ def run(pm, argv):
     ast = parser.parse(src)
 
     for node in (ast if isinstance(ast, list) else [ast]):
-        executors = pm.get_executors_for_kind(node.kind)
+        executors = parser.parsie.get_executors_for_kind(node.kind)
         if not executors:
             raise RuntimeError(f"No executor for AST kind: {node.kind}")
         for ex in executors:
