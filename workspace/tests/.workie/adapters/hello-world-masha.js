@@ -5,14 +5,15 @@ const path = require('path');
 
 module.exports = (() => {
   // Resolve where your Python module lives
-  const rootDir = path.resolve(__dirname, '../../sandbox/shadow'); // up to /tests
-  const srcDir = path.join(rootDir, 'src');
+  const rootDir = path.resolve(__dirname, '../../'); // up to /tests
+  const srcDir = path.join(rootDir, 'sandbox/shadow');
 
   // Normally command: python -m src path/to/masha
-  const scriptArg = path.join('masha-files', 'hello-world.masha');
+  const scriptArg = path.join(rootDir, '.workie', 'masha-files', 'hello-world.masha');
 
+  // TODO: sandbox this runner to use our own spawner with restrictions
   const result = spawnSync('python', ['-m', 'src', scriptArg], {
-    cwd: rootDir,
+    cwd: srcDir,
     encoding: 'utf8',
   });
 
