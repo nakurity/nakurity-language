@@ -7,7 +7,7 @@
 # Set it to use bash when possible
 #!/usr/bin/bash
 
-git pull # gotta get the latest changes, since codespaces is just used to run
+git pull --ff # gotta get the latest changes, since codespaces is just used to run
 # and test the programs I code.
 
 # ================================================================================= #
