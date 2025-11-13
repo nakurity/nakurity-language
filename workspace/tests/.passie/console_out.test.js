@@ -11,8 +11,12 @@ module.exports = function (info) {
   // Register test steps
   info.register('should print hello world', async () => {
     info.require('masha-files/hello-world.masha');
+    if (cfg.output === undefined) {
+      throw new Error('Nakurity Lang failed at the language level, see error above ^^')
+    }
+    
     if (!cfg.ok) {
-      throw new Error(`Python did not print hello world. Got:\n${cfg.output}`);
+      throw new Error(`Nakurity Lang did not print hello world. Got:\n${cfg.output}`);
     }
   });
 };
