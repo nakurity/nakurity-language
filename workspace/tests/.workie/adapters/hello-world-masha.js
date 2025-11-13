@@ -5,7 +5,7 @@ const path = require('path');
 
 module.exports = (() => {
   // Resolve where your Python module lives
-  const rootDir = path.resolve(__dirname, '../..'); // up to /tests
+  const rootDir = path.resolve(__dirname, '../../sandbox/shadow'); // up to /tests
   const srcDir = path.join(rootDir, 'src');
 
   // Normally command: python -m src path/to/masha
