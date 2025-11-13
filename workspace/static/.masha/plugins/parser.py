@@ -207,8 +207,8 @@ class SimpleParser:
             def resolved():
                 try:
                     node = sym_provider.tokens_to_ast(tokens)
-                    if node.kind == "Outerlands":
-                        node = sym_provider.tokens_to_ast(tokens, source.content.splitlines(), line_index)
+                    # if node.kind == "Outerlands":
+                    #     node = sym_provider.tokens_to_ast(tokens, source.content.splitlines(), line_index)
 
                     nodes.append(node)
                 except Exception:

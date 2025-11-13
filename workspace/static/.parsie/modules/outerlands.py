@@ -1,76 +1,95 @@
 from src.core.types import ASTNode
+from pathlib import Path
+
+import os
 
 class OuterlandsSymbolProvider:
     def __init__(self, pm):
         self.pm = pm
 
-    def tokens_to_ast(self, tokens, source_lines=None, current_index=0):
-        """
-        Supports syntax:
-          outerlands:module.create [below]
-            .type python
-            .name example_file
-            .parent cwd()
-        ...code...
-        [finished-definition]
-        """
-        # Defensive checks
-        if not tokens:
-            return ASTNode(kind="Outerlands", data={})
+    def tokens_to_ast(self, tokens):
+        # Example syntax: print "hello world"
+        payload = " ".join(tokens[1:])
+        # Strip surrounding quotes if present
+        if len(payload) >= 2 and payload.startswith('[') and payload.endswith(']'):
+            payload = payload[1:-1]
+            if payload.startswith('root'):
+                payload = payload.replace('root',
+                    str(Path(
+                        Path(
+                            os.path.abspath(__file__)
+                        ) / '..' / '..' / '..' / '..' / '..'
+                    ).resolve()), 1)
+                payload = Path(payload).resolve()
+        return ASTNode(kind="Outerlands", data={"text": payload})
 
-        # Parse the header: e.g. outerlands:module.create [below]
-        head = tokens[0]
-        mode = tokens[1] if len(tokens) > 1 else None
+    # def tokens_to_ast(self, tokens, source_lines=None, current_index=0):
+    #     """
+    #     Supports syntax:
+    #       outerlands:module.create [below]
+    #         .type python
+    #         .name example_file
+    #         .parent cwd()
+    #     ...code...
+    #     [finished-definition]
+    #     """
+    #     # Defensive checks
+    #     if not tokens:
+    #         return ASTNode(kind="Outerlands", data={})
 
-        # Start collecting configuration + payload
-        config = {}
-        payload_lines = []
-        in_payload = False
+    #     # Parse the header: e.g. outerlands:module.create [below]
+    #     head = tokens[0]
+    #     mode = tokens[1] if len(tokens) > 1 else None
 
-        if source_lines is None:
-            # Fallback if we have no context (shouldn't happen for real parser)
-            return ASTNode(kind="Outerlands", data={"mode": mode})
+    #     # Start collecting configuration + payload
+    #     config = {}
+    #     payload_lines = []
+    #     in_payload = False
 
-        # Walk lines after the header
-        for i in range(current_index + 1, len(source_lines)):
-            line = source_lines[i].rstrip("\n")
-            stripped = line.strip()
+    #     if source_lines is None:
+    #         # Fallback if we have no context (shouldn't happen for real parser)
+    #         return ASTNode(kind="Outerlands", data={"mode": mode})
 
-            # Stop at [finished-definition]
-            if stripped == "[finished-definition]":
-                break
+    #     # Walk lines after the header
+    #     for i in range(current_index + 1, len(source_lines)):
+    #         line = source_lines[i].rstrip("\n")
+    #         stripped = line.strip()
 
-            # Detect key-value attributes
-            if stripped.startswith(".") and not in_payload:
-                parts = stripped[1:].split(" ", 1)
-                key = parts[0]
-                val = parts[1].strip() if len(parts) > 1 else ""
-                config[key] = val
-                continue
+    #         # Stop at [finished-definition]
+    #         if stripped == "[finished-definition]":
+    #             break
 
-            # Detect [below] payload start
-            if stripped.endswith("[below]"):
-                in_payload = True
-                continue
+    #         # Detect key-value attributes
+    #         if stripped.startswith(".") and not in_payload:
+    #             parts = stripped[1:].split(" ", 1)
+    #             key = parts[0]
+    #             val = parts[1].strip() if len(parts) > 1 else ""
+    #             config[key] = val
+    #             continue
 
-            # Inside payload area
-            if in_payload:
-                # Skip pure empty indented lines
-                if not stripped and not line.startswith("  "):
-                    continue
-                # Capture code content (dedent if needed)
-                payload_lines.append(line[2:] if line.startswith("  ") else line)
+    #         # Detect [below] payload start
+    #         if stripped.endswith("[below]"):
+    #             in_payload = True
+    #             continue
 
-        payload = "\n".join(payload_lines)
+    #         # Inside payload area
+    #         if in_payload:
+    #             # Skip pure empty indented lines
+    #             if not stripped and not line.startswith("  "):
+    #                 continue
+    #             # Capture code content (dedent if needed)
+    #             payload_lines.append(line[2:] if line.startswith("  ") else line)
 
-        return ASTNode(
-            kind="Outerlands",
-            data={
-                "mode": mode,
-                "config": config,
-                "text": payload
-            }
-        )
+    #     payload = "\n".join(payload_lines)
+
+    #     return ASTNode(
+    #         kind="Outerlands",
+    #         data={
+    #             "mode": mode,
+    #             "config": config,
+    #             "text": payload
+    #         }
+    #     )
 
 
 class OuterlandsExecutor:
@@ -79,27 +98,31 @@ class OuterlandsExecutor:
 
     def can_handle(self, node: ASTNode) -> bool:
         return node.kind == "Outerlands"
-
+    
     def execute(self, node: ASTNode):
-        data = node.data
-        cfg = data.get("config", {})
-        code = data.get("text", "")
+        # Plugin-provided behavior
+        self.pm._import(node.data.get("text", ""))
 
-        filetype = cfg.get("type", "python")
-        name = cfg.get("name", "unnamed_module")
-        parent = cfg.get("parent", "cwd()")
+    # def execute(self, node: ASTNode):
+    #     data = node.data
+    #     cfg = data.get("config", {})
+    #     code = data.get("text", "")
 
-        print(f"[OuterlandsExecutor] Creating {filetype} module '{name}' under {parent}")
-        print("--- Code ---")
-        print(code)
-        print("------------")
+    #     filetype = cfg.get("type", "python")
+    #     name = cfg.get("name", "unnamed_module")
+    #     parent = cfg.get("parent", "cwd()")
 
-        # Real behavior could dispatch to a type-specific handler
-        if filetype == "python":
-            try:
-                exec(code, {})
-            except Exception as e:
-                print(f"[OuterlandsExecutor error] {e}")
+    #     print(f"[OuterlandsExecutor] Creating {filetype} module '{name}' under {parent}")
+    #     print("--- Code ---")
+    #     print(code)
+    #     print("------------")
+
+    #     # Real behavior could dispatch to a type-specific handler
+    #     if filetype == "python":
+    #         try:
+    #             exec(code, {})
+    #         except Exception as e:
+    #             print(f"[OuterlandsExecutor error] {e}")
 
 def create_symbol_provider(pm):
     return OuterlandsSymbolProvider(pm)

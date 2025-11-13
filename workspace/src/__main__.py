@@ -10,10 +10,10 @@ tracy = Tracer(TracerConfig(
     project_root=os.getcwd(),
     name="Tracy! the neighbor's kid!",
     log_file_base="nakurity-lang.log",
-    include_paths=["src", "static"]
+    include_paths=["src", "static"],
 ))
 
-sys.settrace(tracy.trace)
+# sys.settrace(tracy.trace)
 
 def main():
     root_dir = os.getcwd()
