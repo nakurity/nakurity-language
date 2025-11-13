@@ -200,7 +200,7 @@ class SimpleParser:
             head = tokens[0]
 
             # Try resolve symbol via core
-            sym_provider = self.parsie._import(self.pm._abs(f"static/.parsie/modules/{head}"))
+            sym_provider = self.pm._resolve_symbol(self.pm._abs(f"static/.parsie/modules/{head}"))
 
             # Try parsie-based fallback
             if not sym_provider:
