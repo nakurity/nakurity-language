@@ -10,7 +10,7 @@ module.exports = function (info) {
 
   // Register test steps
   info.register('should print hello world', async () => {
-    const cfg = info.require('masha-files/hello-world.masha');
+    info.require('masha-files/hello-world.masha');
     if (!cfg.ok) {
       throw new Error(`Python did not print hello world. Got:\n${cfg.output}`);
     }
