@@ -61,7 +61,7 @@ const { Information } = require('./information');
     ]
   });
 
-  function rematerializeShadow({ whitelist: [] }) {
+  function rematerializeShadow() {
     Information.materializeShadow({
       srcDir,
       staticDir,
@@ -129,6 +129,7 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
 
 
 
