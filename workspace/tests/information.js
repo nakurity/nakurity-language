@@ -12,12 +12,16 @@ class Information {
       testsDir = __dirname,
       workieDir = path.join(__dirname, '.workie'),
       nakieDir = path.join(__dirname, '.nakie'),
-      shadowDir = path.join(__dirname, 'sandbox', 'shadow'),
-      logger = console
+      shadowDir = path.join(__dirname, 'sandbox', 'shadow-root', 'x-dependencies'),
+      logger = console,
+
+      contexty = {}
     } = options;
 
     this.paths = { rootDir, testsDir, workieDir, nakieDir, shadowDir };
     this.logger = logger;
+
+    this.contexty = {}
 
     this._registered = [];
     this._workieCache = new Map();
@@ -35,6 +39,10 @@ class Information {
 
   // Strict require: only allow .workie files (and JSON) through a minimal loader
   require(relPath) {
+    if (relPath === ('rarovery-api')) {
+      return this.contexty
+    }
+    
     const fullPath = path.resolve(this.paths.workieDir, relPath);
     if (!fullPath.startsWith(this.paths.workieDir)) {
       throw new Error(`Blocked require: ${relPath} is outside .workie`);
@@ -48,42 +56,42 @@ class Information {
 
     let exported;
     if (ext === '.js') {
-  const code = fs.readFileSync(fullPath, 'utf8');
+      const code = fs.readFileSync(fullPath, 'utf8');
 
-  // build a normal require that resolves relative to .workie
-  const safeRequire = (mod) => {
-    // allow Node builtins
-    if (require('module').builtinModules.includes(mod)) {
-      return require(mod);
-    }
+      // build a normal require that resolves relative to .workie
+      const safeRequire = (mod) => {
+        // allow Node builtins
+        if (require('module').builtinModules.includes(mod)) {
+          return require(mod);
+        }
 
-    // allow relative imports only inside .workie
-    if (mod.startsWith('.') || path.isAbsolute(mod)) {
-      const target = path.resolve(path.dirname(fullPath), mod);
-      if (!target.startsWith(this.paths.workieDir)) {
-        throw new Error(`Blocked require: ${mod} is outside .workie`);
-      }
-      return this.require(path.relative(this.paths.workieDir, target));
-    }
+        // allow relative imports only inside .workie
+        if (mod.startsWith('.') || path.isAbsolute(mod)) {
+          const target = path.resolve(path.dirname(fullPath), mod);
+          if (!target.startsWith(this.paths.workieDir)) {
+            throw new Error(`Blocked require: ${mod} is outside .workie`);
+          }
+          return this.require(path.relative(this.paths.workieDir, target));
+        }
 
-    throw new Error(`Blocked require: external module "${mod}"`);
-  };
+        throw new Error(`Blocked require: external module "${mod}"`);
+      };
 
-  const sandbox = {
-    module: { exports: {} },
-    exports: {},
-    console: this.logger,
-    require: safeRequire,
-    __dirname: path.dirname(fullPath),
-    __filename: fullPath,
-  };
+      const sandbox = {
+        module: { exports: {} },
+        exports: {},
+        console: this.logger,
+        require: safeRequire,
+        __dirname: path.dirname(fullPath),
+        __filename: fullPath,
+      };
 
-  vm.createContext(sandbox, { name: `workie:${relPath}` });
-  const script = new vm.Script(code, { filename: fullPath });
-  script.runInContext(sandbox);
+      vm.createContext(sandbox, { name: `workie:${relPath}` });
+      const script = new vm.Script(code, { filename: fullPath });
+      script.runInContext(sandbox);
 
-  exported = sandbox.module.exports || sandbox.exports;
-} else if (ext === '.json') {
+      exported = sandbox.module.exports || sandbox.exports;
+    } else if (ext === '.json') {
       const raw = fs.readFileSync(fullPath, 'utf8');
       exported = JSON.parse(raw);
     } else {
@@ -241,4 +249,5 @@ function createNakieAPI({ sfs, info, options }) {
 }
 
 module.exports = { Information };
+
 
