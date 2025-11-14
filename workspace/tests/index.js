@@ -70,6 +70,11 @@ const { Information } = require('./information');
     })
   }
 
+  info.contexty = {
+    'rematerializeShadow': rematerializeShadow,
+    'sandbox_whitelist': whitelist
+  }
+
   // Auto-discover tests in .passie
   const passieDir = path.join(testsDir, '.passie');
   const files = fs.existsSync(passieDir) ? fs.readdirSync(passieDir) : [];
@@ -124,6 +129,7 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
 
 
 
