@@ -3,6 +3,10 @@
 
 module.exports = function (info) {
     const cfg = info.require('adapters/outerlands-masha.js')
+    const ctx = info.require('rarovery-api')
+
+    ctx.sandbox_whitelist.push({ from: 'static/.parsie/modules/outerlands.py' })
+    ctx.rematerializeShadow()
 
     info.register('should register outerlands module', () => {
         info.require('masha-files/test-outerlands.masha')
