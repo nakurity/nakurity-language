@@ -200,7 +200,7 @@ class SimpleParser:
 
             tokens = self.tokenize_line(line)
             head = tokens[0]
-
+            
             # Try resolve symbol via core
             sym_provider = self.pm.resolve_symbol(self.pm._abs(f"static/.parsie/modules/{head}"))
 

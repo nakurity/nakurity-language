@@ -8,20 +8,21 @@ class OuterlandsSymbolProvider:
         self.pm = pm
 
     def tokens_to_ast(self, tokens):
-        # Example syntax: print "hello world"
+        # Example syntax: outerlands require["root/a.py"]
         payload = " ".join(tokens[1:])
         # Strip surrounding quotes if present
-        if len(payload) >= 2 and payload.startswith('[') and payload.endswith(']'):
-            payload = payload[1:-1]
+        if len(payload) >= 2 and payload.startswith('require["') and payload.endswith('"]'):
+            payload = payload[9:-2] #
             if payload.startswith('root'):
                 payload = payload.replace('root',
                     str(Path(
                         Path(
                             os.path.abspath(__file__)
                         ) / '..' / '..' / '..' / '..' / '..'
-                    ).resolve()), 1)
+                    )), 1)
                 payload = Path(payload).resolve()
-        return ASTNode(kind="Outerlands", data={"text": payload})
+            return ASTNode(kind="Outerlands", data={"path": payload, "alias": "require"})
+        return ASTNode(kind='Outerlands', data={'alias': 'unknown alias'})
 
     # def tokens_to_ast(self, tokens, source_lines=None, current_index=0):
     #     """
@@ -101,8 +102,12 @@ class OuterlandsExecutor:
     
     def execute(self, node: ASTNode):
         # Plugin-provided behavior
-        self.pm._import(node.data.get("text", ""))
 
+        alias = node.data.get("alias", "")
+
+        if alias == "require":
+            self.pm._import(node.data.get("path", ""))
+        
     # def execute(self, node: ASTNode):
     #     data = node.data
     #     cfg = data.get("config", {})
@@ -124,7 +129,7 @@ class OuterlandsExecutor:
     #         except Exception as e:
     #             print(f"[OuterlandsExecutor error] {e}")
 
-def create_symbol_provider(pm):
+def create_outerlands_symbol(pm):
     return OuterlandsSymbolProvider(pm)
 
 def create_executor(pm):
@@ -136,5 +141,5 @@ def register(pm, module_key: str):
     pm.registry.register_symbol(
         symbol_name="outerlands", 
         module_path=module_key, 
-        factory_name="create_symbol_provider"
+        factory_name="create_outerlands_symbol"
     )

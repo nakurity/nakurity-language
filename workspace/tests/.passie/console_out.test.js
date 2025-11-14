@@ -9,7 +9,7 @@ module.exports = function (info) {
   const nakie = info.expect('nakie_api', { mode: 'strict' });
 
   // Register test steps
-  info.register('should print hello world', async () => {
+  info.register('should print hello world', () => {
     info.require('masha-files/hello-world.masha');
     if (cfg.output === undefined) {
       throw new Error('Nakurity Lang failed at the language level, see error above ^^')

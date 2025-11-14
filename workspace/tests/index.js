@@ -47,6 +47,7 @@ const { Information } = require('./information');
       
       { from: 'static/.parsie/modules/import.py' },
       { from: 'static/.parsie/modules/print.py' },
+      { from: 'static/.parsie/modules/outerlands.py'},
 
       { from: 'static/.reverie/autorun/args.py' },
       
