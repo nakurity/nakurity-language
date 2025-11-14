@@ -10,7 +10,7 @@ const { Information } = require('./information');
   const testsDir = __dirname;
   const workieDir = path.join(testsDir, '.workie');
   const nakieDir = path.join(testsDir, '.nakie');
-  const shadowDir = path.join(testsDir, 'sandbox', 'shadow');
+  const shadowDir = path.join(testsDir, 'sandbox', 'shadow-root', 'x-dependencies');
 
   const info = new Information({
     rootDir,
@@ -24,6 +24,30 @@ const { Information } = require('./information');
   // Materialize shadow sandbox from src/static with an explicit whitelist
   const srcDir = path.join(rootDir, 'src');
   const staticDir = path.join(rootDir, 'static');
+
+  // global whitelist passed to modules for lazy loading
+  const whitelist = [
+      // core files
+      { from: 'src/__main__.py' },
+      { from: 'src/core/events.py' },
+      { from: 'src/core/plugins_manager.py' },
+      { from: 'src/core/types.py' },
+
+      // static files
+      // { from: 'static/.masha/config.json' },
+      // { from: 'static/.masha/plugins/parser.py' },
+
+      // { from: 'static/.needy/modules/runner.py' },
+      
+      // { from: 'static/.parsie/modules/import.py' },
+      // { from: 'static/.parsie/modules/print.py' },
+      // { from: 'static/.parsie/modules/outerlands.py'},
+
+      // { from: 'static/.reverie/autorun/args.py' },
+      
+      // { from: 'static/shared/manager.py' }
+  ]
+  
   Information.materializeShadow({
     srcDir,
     staticDir,
@@ -33,27 +57,18 @@ const { Information } = require('./information');
       // { from: 'src/runtime.py' },
       // { from: 'static/config.yaml' },
 
-      // core files
-      { from: 'src/__main__.py' },
-      { from: 'src/core/events.py' },
-      { from: 'src/core/plugins_manager.py' },
-      { from: 'src/core/types.py' },
-
-      // static files
-      { from: 'static/.masha/config.json' },
-      { from: 'static/.masha/plugins/parser.py' },
-
-      { from: 'static/.needy/modules/runner.py' },
-      
-      { from: 'static/.parsie/modules/import.py' },
-      { from: 'static/.parsie/modules/print.py' },
-      { from: 'static/.parsie/modules/outerlands.py'},
-
-      { from: 'static/.reverie/autorun/args.py' },
-      
-      { from: 'static/shared/manager.py' }
+      ...whitelist
     ]
   });
+
+  function rematerializeShadow({ whitelist: [] }) {
+    Information.materializeShadow({
+      srcDir,
+      staticDir,
+      shadowDir,
+      whitelist
+    })
+  }
 
   // Auto-discover tests in .passie
   const passieDir = path.join(testsDir, '.passie');
@@ -109,5 +124,6 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
 
 
