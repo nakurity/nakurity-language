@@ -9,7 +9,7 @@ class Download:
     def __init__(self, version: str, repo: str):
         self.version = version
         self.repo = repo  # e.g., "username/repo"
-        self.base_url = f"https://raw.githubusercontent.com/{repo}/prototype-dev:{version}/downloadable.md"
+        self.base_url = f"https://raw.githubusercontent.com/{repo}/prototype-dev:{version}/downloadables.md"
         self.modules_info = {}
 
     def fetch_downloadable_md(self):
