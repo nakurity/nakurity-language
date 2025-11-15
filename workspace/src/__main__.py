@@ -1,6 +1,8 @@
 # masha_lang/__main__.py
 import os
 import sys
+
+from pathlib import Path
 from .core.plugins_manager import PluginManager
 from nakuritycore.utils.tracer import TracerConfig, Tracer
 
@@ -15,8 +17,7 @@ tracy = Tracer(TracerConfig(
 
 # sys.settrace(tracy.trace)
 
-def main():
-    root_dir = os.getcwd()
+def dependencies(root_dir: str):
     pm = PluginManager(root_dir=root_dir)
     pm.load_config()
     pm.run_autorun()   # autorun modules handle flags, setup, etc.
@@ -29,5 +30,26 @@ def main():
 
     runner(pm, sys.argv)
 
+def standalone(toot_dir: str):
+    installed = [
+        os.path.join(root_fir, 'static')
+    ]
+    for path in installed:
+        if !os.path.exists(path):
+            installed.remove(path)
+            print(f"warning: source {path} not downloaded")
+
+    if installed.count != 0: return;
+    
+    print('hint: try running "nakurity download"')
+    if sys.argv.includes('download'):
+        args = sys.argv
+        args.remove('download')
+        
+        from utils import download
+        sys.exit(download.handle(args))
+
 if __name__ == "__main__":
-    main()
+    root_dir = os.getcwd()
+    standalone(root_dir)
+    dependencies(root_dir)
