@@ -11,13 +11,8 @@ def read_source(path: str) -> SourceFile:
 
 def run(pm, argv):
     if len(argv) < 2:
-        print("Usage: nakurity-lang <source_file> [:bare] | nakurity-lang download [static.zip]")
+        print("Usage: nakurity <source_file> [:bare] | nakurity-lang download [static.zip]")
         sys.exit(1)
-
-    # handle :bare, download, etc. here
-    # if argv[1] == "download":
-    #     from . import download
-    #     return download.handle(pm.root_dir, argv[2:] if len(argv) > 2 else [])
 
     bare = any(arg == ":bare" for arg in argv)
     if bare:
