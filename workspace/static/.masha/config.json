@@ -1,12 +1,7 @@
 {
-  "package_version": "0.0.1",
-  "paths": {
-    "plugins_dir": "static/.masha/plugins",
-    "modules_dir": "static/.parsie/modules",
-    "needy_plugins_dir": "static/.needy/modules",
-    "reverie_dir": "static/.reverie/autorun"
-  },
+  "version": "0.0.1",
   "enabled": [
-    "static/.needy/modules/runner.py"
+    "@.needy/modules/runner.py",
+    "@.masha/plugins/parser.py"
   ]
 }

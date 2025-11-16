@@ -106,7 +106,7 @@ class OuterlandsExecutor:
         alias = node.data.get("alias", "")
 
         if alias == "require":
-            self.pm._import(node.data.get("path", ""))
+            self.pm._import_file(node.data.get("path", ""))
         
     # def execute(self, node: ASTNode):
     #     data = node.data

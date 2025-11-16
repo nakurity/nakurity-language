@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "lint:py": "find src -name '*.py' -exec python tools/nakurity_linter.py {}",
+    "generate-docs": "node cutils/tools/generate-docs.js",
+    "test": "node tests/index.js"
+  }
+}

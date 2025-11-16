@@ -199,6 +199,39 @@ class Information {
       fs.copyFileSync(srcPath, destPath);
     }
   }
+
+  static cleanup({ srcDir, staticDir, shadowDir, whitelist = [] }) {
+    const dirsToDelete = []
+    for (const entry of whitelist) {
+      // entry: { from: 'src/foo.py', to: 'src/foo.py' } relative to their roots
+      const [root, rel] = entry.from.startsWith('src/')
+        ? [srcDir, entry.from.slice(4)]
+        : entry.from.startsWith('static/')
+          ? [staticDir, entry.from.slice(7)]
+          : [null, null];
+
+      if (!root) throw new Error(`Invalid whitelist entry: ${entry.from}`);
+      const destPath = path.resolve(shadowDir, entry.to || entry.from);
+      const destDir = path.dirname(destPath);
+      fs.rmSync(destPath);
+      
+      try {
+        fs.rmdirSync(destDir);
+      } catch (e) {
+        if (e.code === 'ENOTEMPTY') {
+          dirsToDelete.push(destDir)
+        }
+      }
+    }
+
+    cons
+
+    if (dirsToDelete.length !== 0) {
+      for (let dir in dirsToDelete) {
+        fs.rmdirSync(dir)
+      }
+    }
+  }
 }
 
 function createNakieAPI({ sfs, info, options }) {

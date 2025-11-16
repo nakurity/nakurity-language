@@ -127,6 +127,8 @@ const { Information } = require('./information');
   console.log(`\n=== Summary ===`);
   console.log(`Total: ${total} | Passed: ${passed} | Failed: ${failed}`);
 
+  Information.cleanup({ srcDir, staticDir, shadowDir, whitelist })
+
   process.exitCode = failed > 0 ? 1 : 0;
 })();
 

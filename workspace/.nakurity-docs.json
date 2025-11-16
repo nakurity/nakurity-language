@@ -1,0 +1,13 @@
+{
+  "defaultInfo": "None",
+  "defaultDocs": null,
+  "defaultReason": "No reason provided",
+
+  "files": {
+    "src/core/events.py": {
+      "info": "Core event system",
+      "docs": "docs/events.md",
+      "reason": "Explains event flow"
+    }
+  }
+}

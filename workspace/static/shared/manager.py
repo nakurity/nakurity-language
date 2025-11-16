@@ -1,8 +1,11 @@
 import importlib.util
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 
 class ParsieRegistry:
+    """Runtime registry (only contains what was ACTUALLY loaded)."""
+
     def __init__(self):
         self.parsers_by_ext: Dict[str, Dict] = {}
         self.symbol_providers: Dict[str, Dict] = {}
@@ -10,106 +13,130 @@ class ParsieRegistry:
         self.loaded_modules: Dict[str, Any] = {}
 
     def register_parser(self, ext: str, module_path: str, factory_name: str):
-        self.parsers_by_ext[ext] = {"module": module_path, "factory": factory_name}
+        """Register a parser for a file extension."""
+        self.parsers_by_ext[ext] = {
+            "module": module_path,
+            "factory": factory_name
+        }
 
     def register_symbol(self, symbol_name: str, module_path: str, factory_name: str):
-        self.symbol_providers[symbol_name] = {"module": module_path, "factory": factory_name}
+        """Register a symbol provider."""
+        self.symbol_providers[symbol_name] = {
+            "module": module_path,
+            "factory": factory_name
+        }
 
     def register_executor(self, kind: str, module_path: str, factory_name: str):
-        self.executors_by_kind.setdefault(kind, []).append(
-            {"module": module_path, "factory": factory_name}
-        )
-
-    def _import_factory(self, module_path: str, factory_name: str):
-        # module_path is a logical key we assign (e.g., file path)
-        mod = self.loaded_modules.get(module_path)
-        if mod is None:
-            raise RuntimeError(f"Module not imported for factory lookup: {module_path}")
-        return getattr(mod, factory_name)
+        """Register an executor for a specific node kind."""
+        if kind not in self.executors_by_kind:
+            self.executors_by_kind[kind] = []
+        
+        self.executors_by_kind[kind].append({
+            "module": module_path,
+            "factory": factory_name
+        })
 
 class ParsiePluginManager:
-    def __init__(self, base_dir: str):
-        self.base_dir = base_dir
+    """
+    True lazy plugin manager:
+    - No directory scanning.
+    - No loading until requested.
+    - Plugins self-register when imported.
+    """
+
+    def __init__(self):
         self.registry = ParsieRegistry()
-        self._discovered_files: List[str] = []
-        self._imported: Dict[str, bool] = {}
 
-        if os.path.isdir(base_dir):
-            for root, _, files in os.walk(base_dir):
-                for fn in files:
-                    if fn.endswith(".py") and not fn.startswith("_"):
-                        self._discovered_files.append(os.path.join(root, fn))
+        # Known plugin files: { "print": "/abs/path/print.py" }
+        self.known_plugin_files: Dict[str, str] = {}
 
-    def _module_key(self, path: str):
-        return os.path.relpath(path, self.base_dir).replace("\\", "/")
+        # To avoid re-importing
+        self._imported_cache: Dict[str, bool] = {}
 
-    def _import(self, path: str):
-        if self._imported.get(path):
+    # ---------------------------------------------------------
+    # REGISTRATION OF POSSIBLE FILES (lazy sources)
+    # ---------------------------------------------------------
+
+    def register_plugin_file(self, symbol_name: str, file_path: str):
+        """Declare where a plugin for 'symbol_name' *might* live."""
+        self.known_plugin_files[symbol_name] = os.path.abspath(file_path)
+
+    # ---------------------------------------------------------
+    # INTERNAL IMPORT
+    # ---------------------------------------------------------
+
+    def _import_file(self, file_path: str):
+        """Import file only once, triggering plugin registration."""
+
+        file_path = os.path.abspath(file_path)
+
+        if self._imported_cache.get(file_path):
             return
-        mod_key = self._module_key(path)
-        spec = importlib.util.spec_from_file_location(mod_key, path)
+
+        spec = importlib.util.spec_from_file_location(file_path, file_path)
         if not spec or not spec.loader:
             return
+
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        self.registry.loaded_modules[mod_key] = mod
-        self._imported[path] = True
 
-        register = getattr(mod, "register", None)
-        if callable(register):
-            register(self, module_key=mod_key)
+        # Save module
+        self.registry.loaded_modules[file_path] = mod
+        self._imported_cache[file_path] = True
 
-    def _ensure_parser_for_ext(self, ext: str):
-        if ext in self.registry.parsers_by_ext:
-            return
-        for path in self._discovered_files:
-            if not self._imported.get(path):
-                self._import(path)
-                if ext in self.registry.parsers_by_ext:
-                    return
+        # Call its register() if exists
+        register_fn = getattr(mod, "register", None)
+        if callable(register_fn):
+            register_fn(self, module_key=file_path)
 
-    def _ensure_executor_for_kind(self, kind: str):
-        if kind in self.registry.executors_by_kind:
-            return
-        for path in self._discovered_files:
-            if not self._imported.get(path):
-                self._import(path)
-                if kind in self.registry.executors_by_kind:
-                    return
+    # ---------------------------------------------------------
+    # PUBLIC GETTERS — ALL LAZY
+    # ---------------------------------------------------------
 
+    # PARSER
     def get_parser_for_ext(self, ext: str):
-        self._ensure_parser_for_ext(ext)
+        meta = self.registry.parsers_by_ext.get(ext)
+        if not meta:
+            # Try importing plugin with same key name
+            plugin_key = ext.lstrip(".")
+            fp = self.known_plugin_files.get(plugin_key)
+            if fp:
+                self._import_file(fp)
+
         meta = self.registry.parsers_by_ext.get(ext)
         if not meta:
             return None
+
         mod = self.registry.loaded_modules[meta["module"]]
         factory = getattr(mod, meta["factory"])
         return factory(self)
 
-    def get_executors_for_kind(self, kind: str):
-        self._ensure_executor_for_kind(kind)
-        metas = self.registry.executors_by_kind.get(kind, [])
-        result = []
-        for meta in metas:
-            mod = self.registry.loaded_modules[meta["module"]]
-            factory = getattr(mod, meta["factory"])
-            result.append(factory(self))
-        return result
-
+    # SYMBOL PROVIDER
     def get_symbol_provider(self, symbol_name: str):
-        """Get a symbol provider by name."""
-        if symbol_name not in self.registry.symbol_providers:
-            # Try loading it
-            for path in self._discovered_files:
-                if not self._imported.get(path):
-                    self._import(path)
-                    if symbol_name in self.registry.symbol_providers:
-                        break
-        
+        meta = self.registry.symbol_providers.get(symbol_name)
+        if not meta:
+            fp = self.known_plugin_files.get(symbol_name)
+            if fp:
+                self._import_file(fp)
+
         meta = self.registry.symbol_providers.get(symbol_name)
         if not meta:
             return None
-        
+
         mod = self.registry.loaded_modules[meta["module"]]
-        factory = getattr(mod, meta["factory"])
-        return factory(self)
+        return getattr(mod, meta["factory"])(self)
+
+    # EXECUTORS
+    def get_executors_for_kind(self, kind: str):
+        metas = self.registry.executors_by_kind.get(kind)
+        if not metas:
+            fp = self.known_plugin_files.get(kind)
+            if fp:
+                self._import_file(fp)
+
+        metas = self.registry.executors_by_kind.get(kind, [])
+        out = []
+        for meta in metas:
+            mod = self.registry.loaded_modules[meta["module"]]
+            out.append(getattr(mod, meta["factory"])(self))
+        return out
