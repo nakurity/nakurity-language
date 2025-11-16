@@ -1,456 +1,178 @@
-# # src/core/plugin_manager.py
-# import importlib.util
-# import json
-# import os
-# import sys
-# from typing import Any, Dict, List, Optional
-# from .events import EventBus
+# src/core/plugin_manager.py
 
-# class CapabilityRegistry:
-#     def __init__(self):
-#         self.parsers_by_ext: Dict[str, Dict] = {}
-#         self.symbol_providers: Dict[str, Dict] = {}
-#         self.executors_by_kind: Dict[str, List[Dict]] = {}
-#         self.loaded_modules: Dict[str, Any] = {}
-
-#     def register_parser(self, ext: str, module_path: str, factory_name: str):
-#         self.parsers_by_ext[ext] = {"module": module_path, "factory": factory_name}
-
-#     def register_symbol(self, symbol_name: str, module_path: str, factory_name: str):
-#         self.symbol_providers[symbol_name] = {"module": module_path, "factory": factory_name}
-
-#     def register_executor(self, ast_kind: str, module_path: str, factory_name: str):
-#         self.executors_by_kind.setdefault(ast_kind, []).append(
-#             {"module": module_path, "factory": factory_name}
-#         )
-
-#     def _import_factory(self, module_path: str, factory_name: str):
-#         # module_path is a logical key we assign (e.g., file path)
-#         mod = self.loaded_modules.get(module_path)
-#         if mod is None:
-#             # This should not happen if registration only occurs post-import
-#             raise RuntimeError(f"Module not imported for factory lookup: {module_path}")
-#         return getattr(mod, factory_name)
-
-# class PluginManager:
-#     """
-#     Core: config, event bus, lazy .py plugin import, capability resolution.
-#     """
-#     def __init__(self, root_dir: str, bare: bool = False):
-#         self.root_dir = root_dir
-#         self.event_bus = EventBus()
-#         self.registry = CapabilityRegistry()
-#         self.config: Dict[str, Any] = {}
-
-#         self.plugins_dir: Optional[str] = None
-#         self.modules_dir: Optional[str] = None
-#         self.needy_plugins_dir: Optional[str] = None
-#         self.autoload_the_needies = bare
-#         self.reverie_dir: Optional[str] = None
-
-#         self.needy: Optional[str] = list
-
-#         # Internal tracking
-#         self._discovered_plugin_files: List[str] = []
-#         self._imported_plugin_files: Dict[str, bool] = {}
-#         self.autorunfiles = []
-
-#     def run_autorun(self):
-#         for path in self.autorunfiles:
-#             self._import_and_register(path)
-#             modkey = self._module_key_for_file(path)
-#             mod = self.registry.loaded_modules.get(modkey)
-#             if mod and hasattr(mod, "autorun"):
-#                 try:
-#                     mod.autorun(self)
-#                 except Exception as e:
-#                     print(f"[autorun error] {path}: {e}")
-
-#     def _abs(self, rel: str) -> str:
-#         return os.path.join(self.root_dir, rel)
-    
-#     def _find_py_files(self, base_dir: str) -> List[str]:
-#         py_files = []
-#         for root, _, files in os.walk(base_dir):
-#             for fn in files:
-#                 if fn.endswith(".py") and not fn.startswith("_"):
-#                     py_files.append(os.path.join(root, fn))
-#         return py_files
-
-#     def load_config(self):
-#         cfg_path = self._abs("static/.masha/config.json")
-#         with open(cfg_path, "r", encoding="utf-8") as f:
-#             self.config = json.load(f)
-
-#         paths = self.config.get("paths", {})
-#         self.plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
-#         self.modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
-#         self.needy_plugins_dir = self._abs(paths.get("needy_plugins_dir", "static/.needy/modules"))
-#         self.reverie_dir = self._abs(paths.get("reverie_dir", "static/.reverie/autorun"))
-
-#         self.needy = self.config.get("enabled", [])
-
-#         for needy_plugins in self.needy: # This has to be in the loop btw
-#             if needy_plugins == "we are very needy":
-#                 self.autoload_the_needies = self.autoload_the_needies and True
-#                 break # If the user said, they are needy. Enable all plugins from .needy
-#             continue
-
-#         # sys.path: allow shared modules under static/.parsie/modules
-#         if self.modules_dir and os.path.isdir(self.modules_dir) and self.modules_dir not in sys.path:
-#             sys.path.append(self.modules_dir)
-
-#         # Discover plugin files up-front (without importing)
-#         if self.plugins_dir and os.path.isdir(self.plugins_dir):
-#             self._discovered_plugin_files += self._find_py_files(self.plugins_dir)
-
-#         if os.path.isdir(self.reverie_dir):
-#             self.autorunfiles = self._find_py_files(self.reverie_dir)
-
-#         def load_the_needies():
-#             # Needy plugins auto-load unless :bare
-#             if self.needy_plugins_dir and os.path.isdir(self.needy_plugins_dir):
-#                 needy_files = self._find_py_files(self.needy_plugins_dir)
-#                 for path in needy_files:
-#                     self._import_and_register(path)
-
-#         if self.autoload_the_needies:
-#             load_the_needies() # cause the users needs their food
-#         else:
-#             if self.needy.count == 0:
-#                 # sadly, this might not be reality
-#                 return "finally, you're not needy"
-#             for still_needy_huh in self.needy: # we have to go shopping for the needy again
-
-#                 # sigh, she gave me a grocery list this time...
-#                 listed_instructions = self._abs(still_needy_huh)
-
-#                 # trying to find the shops in the grocery list is a pain
-#                 user_needy_file = self._find_py_files(self.needy_plugins_dir)
-#                 # if we couldn't find their food at the super market, then too bad too sad
-#                 for each_needs in user_needy_file: # I have to look through the listed items too?!
-#                     if each_needs != listed_instructions: return "sorry, we couldn't find your food. you didn't pay me well enough"
-#                     continue # didn't find it.
-            
-#                 # load their needs
-#                 self._import_and_register(listed_instructions)
-#                 return "you're still needy?!" # update: they made me go on a 8th trip
-
-#     def _module_key_for_file(self, file_path: str) -> str:
-#         # Use a stable key for registry.loaded_modules and factory lookup
-#         return os.path.relpath(file_path, self.root_dir).replace("\\", "/")
-
-#     def _import_and_register(self, file_path: str):
-#         if self._imported_plugin_files.get(file_path):
-#             return  # already imported
-#         mod_key = self._module_key_for_file(file_path)
-
-#         spec = importlib.util.spec_from_file_location(mod_key, file_path)
-#         if spec is None or spec.loader is None:
-#             return
-#         mod = importlib.util.module_from_spec(spec)
-#         try:
-#             spec.loader.exec_module(mod)
-#         except Exception as e:
-#             # If a plugin fails to import, skip it quietly
-#             return
-
-#         # Store module for factory lookups
-#         self.registry.loaded_modules[mod_key] = mod
-#         self._imported_plugin_files[file_path] = True
-
-#         # Require a register(pm) function
-#         register_fn = getattr(mod, "register", None)
-#         if callable(register_fn):
-#             # The plugin calls pm.registry.register_xxx(...)
-#             register_fn(self, module_key=mod_key)
-#         # If there's no register, treat as non-plugin
-
-#     # Lazy resolution: import plugins only when needed
-
-#     def _ensure_parsers_loaded_for_ext(self, ext: str):
-#         if ext in self.registry.parsers_by_ext:
-#             return
-#         # Try all not-yet-imported plugins
-#         for path in list(self._discovered_plugin_files):
-#             if not self._imported_plugin_files.get(path):
-#                 self._import_and_register(path)
-#                 # Early exit if parser got registered
-#                 if ext in self.registry.parsers_by_ext:
-#                     return
-
-#     def _ensure_symbol_loaded(self, name: str):
-#         if name in self.registry.symbol_providers:
-#             return
-#         for path in list(self._discovered_plugin_files):
-#             if not self._imported_plugin_files.get(path):
-#                 self._import_and_register(path)
-#                 if name in self.registry.symbol_providers:
-#                     return
-
-#     def _ensure_executors_loaded_for_kind(self, kind: str):
-#         if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
-#             return
-#         for path in list(self._discovered_plugin_files):
-#             if not self._imported_plugin_files.get(path):
-#                 self._import_and_register(path)
-#                 if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
-#                     return
-
-#     # Public APIs used by the runner:
-
-#     def get_parser_for_extension(self, ext: str):
-#         self._ensure_parsers_loaded_for_ext(ext)
-#         meta = self.registry.parsers_by_ext.get(ext)
-#         if not meta:
-#             return None
-#         factory = self.registry._import_factory(meta["module"], meta["factory"])
-#         return factory(self)
-
-#     def resolve_symbol(self, symbol_name: str):
-#         self._ensure_symbol_loaded(symbol_name)
-#         meta = self.registry.symbol_providers.get(symbol_name)
-#         if not meta:
-#             return None
-#         factory = self.registry._import_factory(meta["module"], meta["factory"])
-#         return factory
-
-#     def get_executors_for_kind(self, kind: str):
-#         self._ensure_executors_loaded_for_kind(kind)
-#         metas = self.registry.executors_by_kind.get(kind, [])
-#         executors = []
-#         for meta in metas:
-#             factory = self.registry._import_factory(meta["module"], meta["factory"])
-#             executors.append(factory(self))
-#         return executors
-# sad. gpt-5 commented this out. :(
 import importlib.util
 import json
 import os
-import sys
-from typing import Any, Dict, List, Optional
+from typing import Dict, Any
 from .events import EventBus
 
-class CapabilityRegistry:
-    def __init__(self):
-        self.parsers_by_ext: Dict[str, Dict] = {}
-        self.symbol_providers: Dict[str, Dict] = {}
-        self.executors_by_kind: Dict[str, List[Dict]] = {}
-        self.loaded_modules: Dict[str, Any] = {}
 
-    def register_parser(self, ext: str, module_path: str, factory_name: str):
-        self.parsers_by_ext[ext] = {"module": module_path, "factory": factory_name}
+class PluginError(Exception):
+    pass
 
-    def register_symbol(self, symbol_name: str, module_path: str, factory_name: str):
-        self.symbol_providers[symbol_name] = {"module": module_path, "factory": factory_name}
-
-    def register_executor(self, ast_kind: str, module_path: str, factory_name: str):
-        self.executors_by_kind.setdefault(ast_kind, []).append(
-            {"module": module_path, "factory": factory_name}
-        )
-
-    def _import_factory(self, module_path: str, factory_name: str):
-        # module_path is a logical key we assign (e.g., file path)
-        mod = self.loaded_modules.get(module_path)
-        if mod is None:
-            raise RuntimeError(f"Module not imported for factory lookup: {module_path}")
-        return getattr(mod, factory_name)
 
 class PluginManager:
     """
-    Core: config, event bus, lazy .py plugin import, capability resolution.
+    True lazy plugin manager.
+    - Loads config only
+    - Loads NO plugins until requested
+    - Allows forced loading only in development (released=False)
     """
-    def __init__(self, root_dir: str, bare: bool = False):
+
+    def __init__(self, root_dir: str, released: bool = False, event_bus = EventBus):
         self.root_dir = root_dir
-        self.event_bus = EventBus()
-        self.registry = CapabilityRegistry()
+        self.released = released  # production mode = no force
+        self.event_bus = event_bus
+        
         self.config: Dict[str, Any] = {}
+        self.enabled: list[str] = []
 
-        self.plugins_dir: Optional[str] = None
-        self.modules_dir: Optional[str] = None
-        self.needy_plugins_dir: Optional[str] = None
-        self.autoload_the_needies = bare
-        self.reverie_dir: Optional[str] = None
+        # Optional stuff
+        self.version: str = "0.0.1"
 
-        # list of plugin keys/names the config marks as enabled
-        self.needy: Optional[List[str]] = None
+        # plugin_key → python module object
+        self._loaded_modules: Dict[str, Any] = {}
 
-        # Internal tracking
-        self._discovered_plugin_files: List[str] = []
-        self._imported_plugin_files: Dict[str, bool] = {}
-        self.autorunfiles: List[str] = []
-
-    def run_autorun(self):
-        for path in self.autorunfiles:
-            self._import_and_register(path)
-            modkey = self._module_key_for_file(path)
-            mod = self.registry.loaded_modules.get(modkey)
-            if mod and hasattr(mod, "autorun"):
-                try:
-                    mod.autorun(self)
-                except Exception as e:
-                    print(f"[autorun error] {path}: {e}")
-
+    # ----------------------------------------------------------------------
+    # Helpers
+    # ----------------------------------------------------------------------
     def _abs(self, rel: str) -> str:
+        """Return absolute path anchored inside static/."""
+        if not rel.startswith("static/") and not rel.startswith("."):
+            error_message = f"Invalid plugin path: {rel} (must be inside static/)"
+            self.event_bus.emit('plugin:manager.error', error=error_message)
+            raise PluginError(error_message)
         return os.path.join(self.root_dir, rel)
 
-    def _find_py_files(self, base_dir: str) -> List[str]:
-        py_files = []
-        for root, _, files in os.walk(base_dir):
-            for fn in files:
-                if fn.endswith(".py") and not fn.startswith("_"):
-                    py_files.append(os.path.join(root, fn))
-        return py_files
+    def _check_static_exists(self):
+        static_dir = os.path.join(self.root_dir, "static")
+        if not os.path.isdir(static_dir):
+            error_message = "Static directory missing. Please download the static package."
+            self.event_bus.emit('plugin:manager.error', error=error_message)
+            raise PluginError(
+                error_message
+            )
 
+    def _module_key(self, path: str) -> str:
+        """Stable key for loaded_modules mapping."""
+        return os.path.relpath(path, self.root_dir).replace("\\", "/")
+
+    # ----------------------------------------------------------------------
+    # CONFIG
+    # ----------------------------------------------------------------------
     def load_config(self):
-        cfg_path = self._abs("static/.masha/config.json")
+        """Load the config file. Must exist."""
+        self.event_bus.emit('plugin:manager.config.before_load')
+        cfg_path = os.path.join(self.root_dir, "static/.masha/config.json")
+        if not os.path.isfile(cfg_path):
+            error_message = (
+                "Config missing: static/.masha/config.json — "
+                "download static package."
+            )
+            self.event_bus.emit('plugin:manager.config.error', error=error_message)
+            raise PluginError(
+                error_message
+            )
+
+        self._check_static_exists()
+
         with open(cfg_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
 
-        paths = self.config.get("paths", {})
-        self.plugins_dir = self._abs(paths.get("plugins_dir", "static/.masha/plugins"))
-        self.modules_dir = self._abs(paths.get("modules_dir", "static/.parsie/modules"))
-        self.needy_plugins_dir = self._abs(paths.get("needy_plugins_dir", "static/.needy/modules"))
-        self.reverie_dir = self._abs(paths.get("reverie_dir", "static/.reverie/autorun"))
+        # Validate version
+        if "version" not in self.config:
+            error_message = "Config invalid: missing 'version' string"
+            self.event_bus.emit('plugin:manager.config.error', error=error_message)
+            raise PluginError(error_message)
 
-        self.needy = self.config.get("enabled", [])
+        # Validate new format
+        if "enabled" not in self.config:
+            error_message = "Config invalid: missing 'enabled' array."
+            self.event_bus.emit('plugin:manager.config.error', error=error_message)
+            raise PluginError(error_message)
 
-        # If the special sentinel "we are very needy" appears, toggle autoload
-        if isinstance(self.needy, list) and "we are very needy" in self.needy:
-            self.autoload_the_needies = True
+        self.version = self.config.get('version', 'error')
 
-        # sys.path: allow shared modules under static/.parsie/modules
-        if self.modules_dir and os.path.isdir(self.modules_dir) and self.modules_dir not in sys.path:
-            sys.path.append(self.modules_dir)
+        # further validate version
+        if self.version == 'error':
+            error_message = "Config invalid: string 'version' missing its contents"
+            self.event_bus.emit('plugin:manager.config.error', error=error_message)
+            raise PluginError(error_message)
 
-        # Discover plugin files up-front (without importing)
-        if self.plugins_dir and os.path.isdir(self.plugins_dir):
-            self._discovered_plugin_files += self._find_py_files(self.plugins_dir)
+        self.enabled = self.config["enabled"]
 
-        if os.path.isdir(self.reverie_dir):
-            self.autorunfiles = self._find_py_files(self.reverie_dir)
+    # ----------------------------------------------------------------------
+    # LAZY LOADING
+    # ----------------------------------------------------------------------
+    def _import_plugin(self, rel_path: str, *, force=False):
+        """Load a plugin file lazily."""
 
-        def load_the_needies():
-            # Needy plugins auto-load unless :bare
-            if self.needy_plugins_dir and os.path.isdir(self.needy_plugins_dir):
-                needy_files = self._find_py_files(self.needy_plugins_dir)
-                for path in needy_files:
-                    self._import_and_register(path)
+        # Resolve absolute path
+        abs_path = self._abs("static/" + rel_path.replace("@", "", 1))
 
-        if self.autoload_the_needies:
-            load_the_needies()
-        else:
-            # If there are explicit entries in 'enabled' try to import them
-            if not self.needy:
-                # nothing explicit to load
-                return
+        if not os.path.isfile(abs_path):
+            error_message = f"Plugin file not found: {rel_path}"
+            self.event_bus.emit('plugin:import_validation.error', error=error_message)
+            raise PluginError(error_message)
 
-            for entry in self.needy:
-                # Treat entries as relative paths (from root) or basenames
-                candidate = self._abs(entry)
-                if os.path.isfile(candidate):
-                    self._import_and_register(candidate)
-                    continue
+        mod_key = self._module_key(abs_path)
+        if mod_key in self._loaded_modules:
+            return self._loaded_modules[mod_key]
 
-                # Otherwise try to find matching file in needy_plugins_dir
-                found = False
-                if self.needy_plugins_dir and os.path.isdir(self.needy_plugins_dir):
-                    for path in self._find_py_files(self.needy_plugins_dir):
-                        if os.path.basename(path) == os.path.basename(entry):
-                            self._import_and_register(path)
-                            found = True
-                            break
-                if not found:
-                    print(f"[load_config] Couldn't find needy plugin entry: {entry}")
+        # Enforce enabled only
+        if rel_path not in self.enabled:
+            if force and not self.released:
+                self.event_bus.emit('plugin:force_load', plugin_path=rel_path)
 
-    def _module_key_for_file(self, file_path: str) -> str:
-        # Use a stable key for registry.loaded_modules and factory lookup
-        return os.path.relpath(file_path, self.root_dir).replace("\\", "/")
+                # allowed only in development
+                print(f"[force-load] {rel_path}")
+            else:
+                error_message = (
+                    f"Plugin '{rel_path}' is not in config.enabled "
+                    "— blocked. (use force=True in development)"
+                )
+                self.event_bus.emit('plugin:force_load.error', error=error_message)
+                raise PluginError(
+                    error_message
+                )
+            
+        self.event_bus.emit("plugin:before_load", path=rel_path)
 
-    def _import_and_register(self, file_path: str):
-        if self._imported_plugin_files.get(file_path):
-            return  # already imported
-        mod_key = self._module_key_for_file(file_path)
-
-        spec = importlib.util.spec_from_file_location(mod_key, file_path)
+        # Actually import lazily now
+        spec = importlib.util.spec_from_file_location(mod_key, abs_path)
         if spec is None or spec.loader is None:
-            return
+            raise PluginError(f"Failed to load plugin: {rel_path}")
+
         mod = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(mod)
+            self.event_bus.emit("plugin:after_load", path=rel_path, module=mod)
         except Exception as e:
-            # If a plugin fails to import, skip it quietly but report a bit
-            print(f"[plugin import error] {file_path}: {e}")
-            return
+            self.event_bus.emit("plugin:error", path=rel_path, error=e)
+            raise PluginError(f"Plugin import error in {rel_path}: {e}")
 
-        # Store module for factory lookups
-        self.registry.loaded_modules[mod_key] = mod
-        self._imported_plugin_files[file_path] = True
+        # Store
+        self._loaded_modules[mod_key] = mod
 
-        # Require a register(pm, module_key) function
+        # call register if exists
         register_fn = getattr(mod, "register", None)
         if callable(register_fn):
             try:
                 register_fn(self, module_key=mod_key)
+                self.event_bus.emit("plugin:registered", path=rel_path, module=mod)
             except Exception as e:
-                print(f"[plugin register error] {file_path}: {e}")
-        # If there's no register, treat as non-plugin
+                self.event_bus.emit("plugin:error", path=rel_path, error=e)
+                raise PluginError(f"Plugin register() failed in {rel_path}: {e}")
 
-    # Lazy resolution: import plugins only when needed
+        return mod
 
-    def _ensure_parsers_loaded_for_ext(self, ext: str):
-        if ext in self.registry.parsers_by_ext:
-            return
-        # Try all not-yet-imported plugins
-        for path in list(self._discovered_plugin_files):
-            if not self._imported_plugin_files.get(path):
-                self._import_and_register(path)
-                # Early exit if parser got registered
-                if ext in self.registry.parsers_by_ext:
-                    return
-
-    def _ensure_symbol_loaded(self, name: str):
-        if name in self.registry.symbol_providers:
-            return
-        for path in list(self._discovered_plugin_files):
-            if not self._imported_plugin_files.get(path):
-                self._import_and_register(path)
-                if name in self.registry.symbol_providers:
-                    return
-
-    def _ensure_executors_loaded_for_kind(self, kind: str):
-        if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
-            return
-        for path in list(self._discovered_plugin_files):
-            if not self._imported_plugin_files.get(path):
-                self._import_and_register(path)
-                if kind in self.registry.executors_by_kind and self.registry.executors_by_kind[kind]:
-                    return
-
-    # Public APIs used by the runner:
-
-    def get_parser_for_extension(self, ext: str):
-        self._ensure_parsers_loaded_for_ext(ext)
-        meta = self.registry.parsers_by_ext.get(ext)
-        if not meta:
-            return None
-        factory = self.registry._import_factory(meta["module"], meta["factory"])
-        return factory(self)
-
-    def resolve_symbol(self, symbol_name: str):
-        self._ensure_symbol_loaded(symbol_name)
-        meta = self.registry.symbol_providers.get(symbol_name)
-        if not meta:
-            return None
-        factory = self.registry._import_factory(meta["module"], meta["factory"])
-        # Return provider instance (factory called with pm)
-        return factory
-
-    def get_executors_for_kind(self, kind: str):
-        self._ensure_executors_loaded_for_kind(kind)
-        metas = self.registry.executors_by_kind.get(kind, [])
-        executors = []
-        for meta in metas:
-            factory = self.registry._import_factory(meta["module"], meta["factory"])
-            executors.append(factory(self))
-        return executors
+    # ----------------------------------------------------------------------
+    # PUBLIC API — for accessing plugin modules
+    # ----------------------------------------------------------------------
+    def get_plugin(self, rel_path: str, *, force=False):
+        """
+        Get a plugin by its relative path inside static/.
+        Example: pm.get_plugin(".needy/modules/runner.py")
+        """
+        if rel_path.startswith('> '): rel_path = rel_path.replace('> ', '@', 1)
+        return self._import_plugin(rel_path, force=force)

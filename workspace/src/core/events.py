@@ -56,7 +56,7 @@ class EventBus:
         # Returns the listener id for easy lookups
         return listener_id
     
-    def verify(self) -> tuple:
+    def verify(self) -> dict:
         """Provides a bunch of functions for verification of stuff"""
 
         def event_exists(event_name: str) -> bool:
@@ -84,7 +84,7 @@ class EventBus:
         }
 
     
-    def register(self) -> tuple:
+    def register(self) -> dict:
         """Provides a bunch of functions for registering stuff"""
         def event(event_name: str):
             """This registers the event as verified it exists"""
@@ -95,12 +95,12 @@ class EventBus:
         }
 
 
-    def get(self) -> tuple:
+    def get(self) -> dict:
         """Provides a bunch of functions to fetch the event listener registry"""
         
         # this function provides utilities that return all listeners, under
         # a specific condition, set by the function
-        def all() -> tuple:
+        def all() -> dict:
             """This function provides an set of functions that get all listeners for a specific condition"""
 
             # this function gets all listeners, listening for an specific event
@@ -134,12 +134,12 @@ class EventBus:
             'listener': listener
         }
 
-    def emit(self, event_name: str, **kwargs) -> list:
+    def emit(self, event_name: str, *args, **kwargs) -> list:
         """Dispatches an event, and execute it. Then returns the result.
         You can enter the event function's arguments after the event name."""
         return list( # This makes the result expect a list
             # The lamba function runs the fn provided by the event listeners
-            map(lambda l: l["fn"](**kwargs), 
+            map(lambda l: l["fn"](*args, **kwargs), 
                 # and this gets the functions for the specific event
                 # that was dispatched
                 self._listeners.get(event_name, [])
