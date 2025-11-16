@@ -1,10 +1,12 @@
 # masha_lang/__main__.py
 import os
 import sys
+from typing import Callable
 from .core.plugins_manager import PluginManager
 from nakuritycore.utils.tracer import TracerConfig, Tracer
 
 from nakuritycore.utils.tracer import TracerConfig, Tracer
+from .shared.constants import MANAGERS, BUSES
 
 tracy = Tracer(TracerConfig(
     project_root=os.getcwd(),
@@ -15,19 +17,40 @@ tracy = Tracer(TracerConfig(
 
 # sys.settrace(tracy.trace)
 
+def standalone():
+    pass
+
 def main():
-    root_dir = os.getcwd()
-    pm = PluginManager(root_dir=root_dir)
+    eventbus = BUSES.get('eventbus')
+    pm = MANAGERS.get('plugin-manager')
     pm.load_config()
-    pm.run_autorun()   # autorun modules handle flags, setup, etc.
 
-    # Hand off to a runner plugin/module
-    runner = pm.resolve_symbol("__runner__")
-    if runner is None:
-        print("No runner module registered. Did you enable .needy/modules?")
-        sys.exit(1)
+    def nonstandalone(function: Callable):
+        function(pm, sys.argv)
+    pass
 
-    runner(pm, sys.argv)
+    try:
+        # Creates a listener first, so when the event fires, 
+        eventbus.on( # the listener would catch it
+            'runner:function.return',
+            nonstandalone
+        )
+
+        # import the plugin
+        pm.get_plugin('> .needy/modules/runner.py')
+
+        # Verify if the event actually exists and got registered.
+        runner_exists = eventbus.verify().get('event_exists')('runner:function.return')
+
+        if not runner_exists: # If it didn't exist, print an error.
+            print("No runner module registered. Did you enable .needy/modules?")
+            print('Defaulting to standalone runner module.')
+            eventbus.emit('nakurity-source:main.error', error='Runner plugin not found, defaulting to standalone module')
+            sys.exit(1)
+
+    except Exception as e:
+        eventbus.emit("nakurity-source:main.error", error=e)
+        raise
 
 if __name__ == "__main__":
     main()
