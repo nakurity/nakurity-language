@@ -8,6 +8,11 @@ module.exports = function (info) {
   // Load nakie expectations
   const nakie = info.expect('nakie_api', { mode: 'strict' });
 
+  const ctx = info.require('rarovery-api')
+
+  ctx.sandbox_whitelist.push({ from: 'static/.parsie/modules/print.py' })
+  ctx.rematerializeShadow()
+
   // Register test steps
   info.register('should print hello world', () => {
     info.require('masha-files/hello-world.masha');
