@@ -1,3 +1,0 @@
-import [Outerlands]
-
-outerlands require["root/a.py"]

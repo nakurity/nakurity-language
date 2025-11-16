@@ -1,6 +1,0 @@
-import [Outerlands]
-autoload [Outerlands]
-
-outerlands boarding [below]
-  print("aaa")
-[finished-definition]

@@ -15,7 +15,7 @@ tracy = Tracer(TracerConfig(
     include_paths=["src", "static"],
 ))
 
-sys.settrace(tracy.trace)
+#sys.settrace(tracy.trace)
 
 def dependent():
     eventbus = BUSES.get('eventbus')

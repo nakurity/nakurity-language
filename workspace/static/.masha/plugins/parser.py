@@ -191,10 +191,11 @@ class Parser:
     def parse(self, source: SourceFile):
         nodes = []
         line_index = 0
-
+        
         interrupt_moment = 'before_load'
 
         def interrupt(fn: Optional[Callable]) -> dict | None:
+            nonlocal interrupt_moment
             if not callable(fn): # if function is not callable
                 # assume the caller is asking information.
 
@@ -234,6 +235,10 @@ class Parser:
                 f'parser:interrupt.signal.{interrupt_moment}',
                 interrupt_function=fn
             )
+
+            # if interrupt moment says its been interrupted. then
+            # stop the normal flow of the parser
+            interrupt_moment = 'interrupted'
                 
             # Since it is already checked above, if its callable or not
             # (i.e. is it a function or not), it should've been function
@@ -295,10 +300,6 @@ class Parser:
                     # parser tries to resolve and load a symbol.
                 ]
             )
-
-            # if interrupt moment says its been interrupted. then
-            # stop the normal flow of the parser
-            interrupt_moment = 'interrupted'
             
         self.pm.event_bus.on( # This is so plugins can interrupt Parser
             # and inject their own code. Could be useful for adding an
@@ -318,6 +319,7 @@ class Parser:
         self.pm.event_bus.emit('parser:full_source_available', lines=source.content.splitlines())
 
         for line in source.content.splitlines():
+
             if not line.strip():
                 line_index = line_index + 1
                 continue
@@ -344,7 +346,7 @@ class Parser:
 
             if interrupt_moment == 'interrupted':
                 interrupt_moment = 'before_load'
-                line_index += 1
+                line_index = line_index + 1
                 continue # Stop before it reaches normally
 
             # This is placed below the interrupt system, so that it is skipped. Since the

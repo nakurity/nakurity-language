@@ -3,6 +3,23 @@ from pathlib import Path
 from re import compile
 import os
 import ast
+import runpy
+
+def outerlands_import(path, **kwargs):
+    """
+    Loads a Python file and injects kwargs into its global namespace.
+    Returns the global namespace dictionary after execution.
+    """
+    # Prepare the global namespace
+    globs = {
+        "__name__": "__outerlands_import__",
+        "__file__": str(path),
+        **kwargs
+    }
+    
+    # Execute the file
+    runpy.run_path(str(path), init_globals=globs)
+    return globs
 
 class OuterlandsSymbolProvider:
     # Matches require["something"]
@@ -223,7 +240,17 @@ class OuterlandsExecutor:
         alias = node.data.get("alias", "")
         
         if alias == "require":
-            self.pm._import_file(node.data.get("path", ""))
+            path = node.data.get("path")
+            args = node.data.get("args", {})
+
+            result = outerlands_import(path, **args)
+
+            # Optionally: emit event so the rest of PM can use what was loaded
+            self.pm.event_bus.emit(
+                "outerlands:imported",
+                path=path,
+                namespace=result
+            )
         
         elif alias == "boarding":
             # Execute boarding code
