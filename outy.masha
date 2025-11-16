@@ -1,10 +1,6 @@
 import [Outerlands]
+autoload [Outerlands]
 
-outerlands:module.create [below]
-  .type python
-  .name example_file
-  .parent cwd()
-
-print("hello world")
-
+outerlands boarding [below]
+  print("aaa")
 [finished-definition]

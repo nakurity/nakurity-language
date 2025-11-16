@@ -183,7 +183,7 @@ class Parser:
 
         # Now create an isolated ParsiePluginManager instance
         from static.shared.manager import ParsiePluginManager
-        self.parsie = ParsiePluginManager()
+        self.parsie = ParsiePluginManager(self.pm.event_bus)
 
     def tokenize_line(self, line: str) -> List[str]:
         return line.strip().split()
@@ -191,6 +191,131 @@ class Parser:
     def parse(self, source: SourceFile):
         nodes = []
         line_index = 0
+
+        interrupt_moment = 'before_load'
+
+        def interrupt(fn: Optional[Callable]) -> dict | None:
+            if not callable(fn): # if function is not callable
+                # assume the caller is asking information.
+
+                # This just says an interrupt happened, and the
+                # interrupting module wanted information. As if
+                # the other events wasn't already giving enough
+                # information.
+                self.pm.event_bus.emit(
+                    f'parser:interrupt.request.{interrupt_moment}_parameters'
+                )
+
+                return { # Returns the interrupt information
+                            
+                    'symbol': head, # The symbol head is what
+                    # the parser uses to identify and resolve
+                    # the symbol to which parsie module. This
+                    # is done by name matching the py files.
+
+                    # This sub-dict contains the full line
+                    # context. So the interrupting module can
+                    # do something with it.
+                    'line': {
+                        # Line index
+                        'index': line_index,
+
+                        # Full line
+                        'full': line
+                    },
+
+                    # Returns parsie, so the interrupting module
+                    # can interact with the environment that loads
+                    # the modules.
+                    'parsie': self.parsie,
+                }
+                
+            self.pm.event_bus.emit(
+                f'parser:interrupt.signal.{interrupt_moment}',
+                interrupt_function=fn
+            )
+                
+            # Since it is already checked above, if its callable or not
+            # (i.e. is it a function or not), it should've been function
+            # if it passed to this line. Otherwise it'd be caught by the
+            # if condition above there.
+            fn(
+                # The interrupt function will provide a few params for the
+                # interrupting module. Inside a params dict.
+                params={
+                    # The params dict should be identifical the the dict
+                    # provided by the interrupt function, when called without
+                    # giving a function for the interrupt function to execute.
+        
+                    # It gives the head of the symbol, which is the part
+                    # of an line, that is separated by a space. And is the
+                    # starting item. Like print "hello world", print is
+                    # the head. and hello world is the parameters.
+                    'symbol': head,
+
+                    # These are the line items. It provides the current
+                    # line number, and the full line contents.
+                    'line': {
+                        'index': line_index,
+                        'full': line
+                    },
+
+                    # Parsie contains a bunch of stuff that Parser uses
+                    # to register and load the provider for these symbols,
+                    # since this module is interrupting that flow. It
+                    # directly bypasses parsie. So this is given so the
+                    # interrupting module can still use it.
+                    'parsie': self.parsie
+                },
+
+                events=[
+                    # This list should contain events that parser still
+                    # hasn't fired. And assuming there are listeners waiting
+                    # for those events. Like from other plugins or modules
+                    # listening for those events, it is standard for the
+                    # interrupting module to fire those events themselves,
+                    # so other plugins / modules don't break because of this.
+
+                    'parser:node', # This fires an event that provides the resolved
+                    # node for other listening plugins. Zero privacy, I know.
+
+                    'parser:symbol:missing', # This event is optional, since
+                    # it is usually only fired when parser could not resolve
+                    # a symbol on its own.
+
+                    'parser:symbol:found', # This event is usually an expected
+                    # behavior, since it obviously says parser has found and
+                    # resolved the symbol on its own.
+
+                    'parser:symbol.after_load', # This event is fired after
+                    # parser has loaded and resolved everything for a sumbol,
+                    # and is continuing to the next symbol.
+
+                    'parser:symbol.before_load', # This event fires before
+                    # parser tries to resolve and load a symbol.
+                ]
+            )
+
+            # if interrupt moment says its been interrupted. then
+            # stop the normal flow of the parser
+            interrupt_moment = 'interrupted'
+            
+        self.pm.event_bus.on( # This is so plugins can interrupt Parser
+            # and inject their own code. Could be useful for adding an
+            # multi-line definition helper. Since this listener skips
+            # the traditional Parser flow. And does not run the code below.
+            'parser:interrupt.symbol.before_load',
+
+            # This function either calls the function that is provided
+            # by the interrupting module. Or returns useful information
+            # from parser, if no function is given to it.
+            interrupt
+
+        ) # This event needs to be above the code that registers the parsie
+        # plugin, because it needs to skip the traditional flow of the parser.
+
+        # Emit full source BEFORE parsing starts
+        self.pm.event_bus.emit('parser:full_source_available', lines=source.content.splitlines())
 
         for line in source.content.splitlines():
             if not line.strip():
@@ -217,124 +342,10 @@ class Parser:
                 tokens=tokens,
             )
 
-            interrupt_moment = 'before_load'
-
-            def interrupt(fn: Optional[Callable]) -> dict | None:
-                if not callable(fn): # if function is not callable
-                    # assume the caller is asking information.
-
-                    # This just says an interrupt happened, and the
-                    # interrupting module wanted information. As if
-                    # the other events wasn't already giving enough
-                    # information.
-                    self.pm.event_bus.emit(
-                        f'parser:interrupt.request.{interrupt_moment}_parameters'
-                    )
-
-                    return { # Returns the interrupt information
-                        
-                        'symbol': head, # The symbol head is what
-                        # the parser uses to identify and resolve
-                        # the symbol to which parsie module. This
-                        # is done by name matching the py files.
-
-                        # This sub-dict contains the full line
-                        # context. So the interrupting module can
-                        # do something with it.
-                        'line': {
-                            # Line index
-                            'index': line_index,
-
-                            # Full line
-                            'full': line
-                        },
-
-                        # Returns parsie, so the interrupting module
-                        # can interact with the environment that loads
-                        # the modules.
-                        'parsie': self.parsie,
-                    }
-                
-                self.pm.event_bus.emit(
-                    f'parser:interrupt.signal.{interrupt_moment}',
-                    interrupt_function=fn
-                )
-                
-                # Since it is already checked above, if its callable or not
-                # (i.e. is it a function or not), it should've been function
-                # if it passed to this line. Otherwise it'd be caught by the
-                # if condition above there.
-                fn(
-                    # The interrupt function will provide a few params for the
-                    # interrupting module. Inside a params dict.
-                    params={
-                        # The params dict should be identifical the the dict
-                        # provided by the interrupt function, when called without
-                        # giving a function for the interrupt function to execute.
-
-                        # It gives the head of the symbol, which is the part
-                        # of an line, that is separated by a space. And is the
-                        # starting item. Like print "hello world", print is
-                        # the head. and hello world is the parameters.
-                        'symbol': head,
-
-                        # These are the line items. It provides the current
-                        # line number, and the full line contents.
-                        'line': {
-                            'index': line_index,
-                            'full': line
-                        },
-
-                        # Parsie contains a bunch of stuff that Parser uses
-                        # to register and load the provider for these symbols,
-                        # since this module is interrupting that flow. It
-                        # directly bypasses parsie. So this is given so the
-                        # interrupting module can still use it.
-                        'parsie': self.parsie
-                    },
-
-                    events=[
-                        # This list should contain events that parser still
-                        # hasn't fired. And assuming there are listeners waiting
-                        # for those events. Like from other plugins or modules
-                        # listening for those events, it is standard for the
-                        # interrupting module to fire those events themselves,
-                        # so other plugins / modules don't break because of this.
-
-                        'parser:node', # This fires an event that provides the resolved
-                        # node for other listening plugins. Zero privacy, I know.
-
-                        'parser:symbol:missing', # This event is optional, since
-                        # it is usually only fired when parser could not resolve
-                        # a symbol on its own.
-
-                        'parser:symbol:found', # This event is usually an expected
-                        # behavior, since it obviously says parser has found and
-                        # resolved the symbol on its own.
-
-                        'parser:symbol.after_load', # This event is fired after
-                        # parser has loaded and resolved everything for a sumbol,
-                        # and is continuing to the next symbol.
-
-                        'parser:symbol.before_load', # This event fires before
-                        # parser tries to resolve and load a symbol.
-                    ]
-                )
-
-                return
-            self.pm.event_bus.on( # This is so plugins can interrupt Parser
-                # and inject their own code. Could be useful for adding an
-                # multi-line definition helper. Since this listener skips
-                # the traditional Parser flow. And does not run the code below.
-                'parser:interrupt.symbol.before_load',
-
-                # This function either calls the function that is provided
-                # by the interrupting module. Or returns useful information
-                # from parser, if no function is given to it.
-                interrupt
-
-            ) # This event needs to be above the code that registers the parsie
-            # plugin, because it needs to skip the traditional flow of the parser.
+            if interrupt_moment == 'interrupted':
+                interrupt_moment = 'before_load'
+                line_index += 1
+                continue # Stop before it reaches normally
 
             # This is placed below the interrupt system, so that it is skipped. Since the
             # interrupt system is supposed to be used for multi-line definition. And this

@@ -15,9 +15,9 @@ tracy = Tracer(TracerConfig(
     include_paths=["src", "static"],
 ))
 
-# sys.settrace(tracy.trace)
+sys.settrace(tracy.trace)
 
-def main():
+def dependent():
     eventbus = BUSES.get('eventbus')
     pm = MANAGERS.get('plugin-manager')
     pm.load_config()
@@ -49,26 +49,26 @@ def main():
         eventbus.emit("nakurity-source:main.error", error=e)
         raise
 
-# def standalone(root_dir: str):
-#     installed = [
-#         os.path.join(root_dir, 'static')
-#     ]
-#     for path in installed:
-#         if not os.path.exists(path):
-#             installed.remove(path)
-#             print(f"warning: source {path} not downloaded")
+def standalone(root_dir: str):
+    installed = [
+        os.path.join(root_dir, 'static')
+    ]
+    for path in installed:
+        if not os.path.exists(path):
+            installed.remove(path)
+            print(f"warning: source {path} not downloaded")
 
-#     if installed.count != 0: return;
+    if installed.count != 0: return;
     
-#     print('hint: try running "nakurity download"')
-#     if sys.argv.includes('download'):
-#         args = sys.argv
-#         args.remove('download')
+    print('hint: try running "nakurity download"')
+    if sys.argv.includes('download'):
+        args = sys.argv
+        args.remove('download')
         
-#         from utils import download
-#         sys.exit(download.handle(args))
+        from .utils import download
+        sys.exit(download.handle(args))
 
 if __name__ == "__main__":
-    # root_dir = os.getcwd()
-    # standalone(root_dir)
-    main()
+    root_dir = os.getcwd()
+    standalone(root_dir)
+    dependent()

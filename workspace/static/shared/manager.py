@@ -36,6 +36,8 @@ class ParsieRegistry:
             "factory": factory_name
         })
 
+from src.core.events import EventBus
+
 class ParsiePluginManager:
     """
     True lazy plugin manager:
@@ -44,8 +46,9 @@ class ParsiePluginManager:
     - Plugins self-register when imported.
     """
 
-    def __init__(self):
+    def __init__(self, eventbus: EventBus):
         self.registry = ParsieRegistry()
+        self.event_bus = eventbus
 
         # Known plugin files: { "print": "/abs/path/print.py" }
         self.known_plugin_files: Dict[str, str] = {}
