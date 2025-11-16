@@ -37,9 +37,8 @@ const { Information } = require('./information');
       // { from: 'static/.masha/config.json' },
       // { from: 'static/.masha/plugins/parser.py' },
 
-      // { from: 'static/.needy/modules/runner.py' },
-      
-      // { from: 'static/.parsie/modules/import.py' },
+      { from: 'static/.needy/modules/runner.py' },
+      { from: 'static/.parsie/modules/import.py' },
       // { from: 'static/.parsie/modules/print.py' },
       // { from: 'static/.parsie/modules/outerlands.py'},
 
@@ -131,6 +130,7 @@ const { Information } = require('./information');
 
   process.exitCode = failed > 0 ? 1 : 0;
 })();
+
 
 
 
