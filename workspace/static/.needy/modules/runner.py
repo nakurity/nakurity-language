@@ -13,7 +13,7 @@ def read_source(path: str) -> SourceFile:
 def run(pm, argv):
     """Main runner function that orchestrates parsing and execution"""
     if len(argv) < 2:
-        print("Usage: nakurity-lang <source_file> [:bare] | nakurity-lang download [static.zip]")
+        print("Usage: nakurity <source_file> [:bare] | nakurity-lang download [static.zip]")
         sys.exit(1)
 
     # Check for special commands
