@@ -219,18 +219,14 @@ class Information {
         fs.rmdirSync(destDir);
       } catch (e) {
         if (e.code === 'ENOTEMPTY') {
+          if (dirsToDelete.includes(destDir)) return;
           dirsToDelete.push(destDir)
         }
       }
     }
 
-    cons
-
-    if (dirsToDelete.length !== 0) {
-      for (let dir in dirsToDelete) {
-        fs.rmdirSync(dir)
-      }
-    }
+    console.log(dirsToDelete)
+    if (dirsToDelete.length !== 0) dirsToDelete.forEach((dir) => fs.rmdirSync(dir))
   }
 }
 

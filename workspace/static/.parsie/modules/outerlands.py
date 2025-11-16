@@ -16,7 +16,7 @@ def outerlands_import(path, **kwargs):
         "__file__": str(path),
         **kwargs
     }
-    
+
     # Execute the file
     runpy.run_path(str(path), init_globals=globs)
     return globs
@@ -39,7 +39,6 @@ class OuterlandsSymbolProvider:
 
     def __init__(self, pm):
         self.pm = pm
-        
         # Multiline capture state
         self.capturing_multiline = False
         self.multiline_header_line = None
@@ -47,24 +46,30 @@ class OuterlandsSymbolProvider:
         self.multiline_header_tokens = []
         self.multiline_config = {}
         self.multiline_payload_lines = []
-        
+
+        def listen_for_line_events(line, tokens, line_index):
+            # Start capturing
+            self.capturing_multiline = True
+
+        self.pm.event_bus.on('parser:line', listen_for_line_events)
         self._setup_listeners()
 
     def _setup_listeners(self):
         """Listen to parser events to handle multiline blocks"""
-        
+
         # Intercept every line during multiline capture
         def check_and_capture(symbol, line, line_index, tokens):
+            nonlocal self
             # If we're capturing multiline content
             if self.capturing_multiline:
                 stripped = line.strip()
-                
+
                 # Check if we've reached the end
                 if stripped == "[finished-definition]":
                     # Build the final node
-                    self._finalize_multiline_node(line_index)
+                    self._finalize_multiline_node()
                     return
-                
+
                 # Check for config lines (start with .)
                 if stripped.startswith(".") and not self.multiline_payload_lines:
                     parts = stripped[1:].split(" ", 1)
@@ -74,59 +79,39 @@ class OuterlandsSymbolProvider:
                 else:
                     # Payload line - dedent by 2 spaces if present
                     if line.startswith("  "):
-                        self.multiline_payload_lines.append(line[2:])
+                        self.multiline_payload_lines.append(line.strip())
                     else:
-                        self.multiline_payload_lines.append(line)
-                
+                        pass
+                        # self.multiline_payload_lines.append(line)
+
                 # Emit interrupt to skip this line
                 def skip_line(params, events):
                     pass
-                
+
                 self.pm.event_bus.emit('parser:interrupt.symbol.before_load', skip_line)
-                return
-            
-            # Check if this line starts a multiline block
-            if symbol == 'outerlands' and '[below]' in line:
-                # Start capturing
-                self.capturing_multiline = True
-                self.multiline_header_line = line
-                self.multiline_start_index = line_index
-                self.multiline_header_tokens = tokens
-                self.multiline_config = {}
-                self.multiline_payload_lines = []
-                
-                # Emit interrupt for the header line
-                def skip_header(params, events):
-                    pass
-                
-                self.pm.event_bus.emit('parser:interrupt.symbol.before_load', skip_header)
-        
+
         self.pm.event_bus.on('parser:symbol.before_load', check_and_capture)
 
-    def _finalize_multiline_node(self, end_index):
+    def _finalize_multiline_node(self):
         """Build and emit the final multiline node"""
-        
-        # Parse the header
-        header = self.multiline_header_line.split('[below]')[0].strip()
-        header_tokens = header.split()
-        initial_ast = self.tokens_to_ast(header_tokens)
-        
+
         # Build the complete node
         node = ASTNode(
             kind="Outerlands",
             data={
-                **initial_ast.data,
                 "config": self.multiline_config,
                 "text": "\n".join(self.multiline_payload_lines),
                 "multiline": True
             }
         )
-        
+
         # Emit the expected events
         self.pm.event_bus.emit('parser:node', node=node, line_index=self.multiline_start_index)
         self.pm.event_bus.emit('parser:symbol:found', symbol='outerlands', line_index=self.multiline_start_index)
         self.pm.event_bus.emit('parser:symbol.after_load', line_index=self.multiline_start_index, line=self.multiline_header_line)
-        
+
+        self._exec_multiline_code(self.multiline_payload_lines)
+
         # Reset capture state
         self.capturing_multiline = False
         self.multiline_header_line = None
@@ -134,12 +119,17 @@ class OuterlandsSymbolProvider:
         self.multiline_header_tokens = []
         self.multiline_config = {}
         self.multiline_payload_lines = []
-        
+
         # Emit interrupt for [finished-definition] line itself
         def skip_end(params, events):
             pass
-        
+
         self.pm.event_bus.emit('parser:interrupt.symbol.before_load', skip_end)
+
+
+    def _exec_multiline_code(self, source: list):
+        payload = "\n".join(source)
+        exec(payload)
 
     def tokens_to_ast(self, tokens):
         """
@@ -149,6 +139,7 @@ class OuterlandsSymbolProvider:
             outerlands boarding['function_name'](msg='aa')
             outerlands boarding
         """
+
         if len(tokens) < 2:
             return ASTNode(kind="Outerlands", data={"error": "missing subcommand"})
 
@@ -158,7 +149,7 @@ class OuterlandsSymbolProvider:
         boarding_match = self.BOARDING_PATTERN.match(raw.split('(')[0].strip())
         if boarding_match:
             func_name = boarding_match.group('func_name')
-            
+
             # Parse optional arguments
             args = {}
             if '(' in raw:
@@ -169,7 +160,7 @@ class OuterlandsSymbolProvider:
                         args[kw.arg] = ast.literal_eval(kw.value)
                 except Exception:
                     args["__parse_error__"] = args_part.strip()
-            
+
             return ASTNode(
                 kind="Outerlands",
                 data={
@@ -235,10 +226,10 @@ class OuterlandsExecutor:
 
     def can_handle(self, node: ASTNode) -> bool:
         return node.kind == "Outerlands"
-    
+
     def execute(self, node: ASTNode):
         alias = node.data.get("alias", "")
-        
+
         if alias == "require":
             path = node.data.get("path")
             args = node.data.get("args", {})
@@ -251,20 +242,20 @@ class OuterlandsExecutor:
                 path=path,
                 namespace=result
             )
-        
+
         elif alias == "boarding":
             # Execute boarding code
             code = node.data.get("text", "")
             args = node.data.get("args", {})
             func_name = node.data.get("function_name")
-            
+
             # Create execution context
             exec_globals = {"__name__": "__outerlands__"}
             exec_globals.update(args)
-            
+
             # Execute the code
             exec(code, exec_globals)
-            
+
             # If function_name specified, it's a function definition
             # Otherwise it's auto-run code
             if func_name:

@@ -58,7 +58,7 @@ def standalone(root_dir: str):
             installed.remove(path)
             print(f"warning: source {path} not downloaded")
 
-    if installed.count != 0: return;
+    if installed.count != 0: return
     
     print('hint: try running "nakurity download"')
     if sys.argv.includes('download'):

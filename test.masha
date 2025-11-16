@@ -1,0 +1,12 @@
+import [Commenting]
+
+comment "this sadly does not work"
+import [math.nakurility]
+
+comment "Test, this should be ignored"
+comment "test two, this is testing if the comment will crash if there is two definitions using it"
+comment "it did not crash, hoorayy!"
+
+import [PrintStatement]
+
+print "Hello world"

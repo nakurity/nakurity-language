@@ -1,0 +1,13 @@
+import [Commenting]
+
+import [Outerlands]
+comment "autoload [Outerlands]"
+
+comment "We have to import commenting lmao"
+
+outerlands boarding [below]
+  print("This should've printed. This is supposed to be ran as a python module, and not a masha module")
+  print("printing 2nd line")
+[finished-definition]
+
+comment "it needs spaces to be seen"

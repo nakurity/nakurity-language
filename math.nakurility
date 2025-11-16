@@ -1,0 +1,4 @@
+import [Outerlands]
+autoload [Outerlands]
+
+outerlands require['root/math.py'](question='2 * 2')

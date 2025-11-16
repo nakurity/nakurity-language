@@ -46,9 +46,10 @@ class ParsiePluginManager:
     - Plugins self-register when imported.
     """
 
-    def __init__(self, eventbus: EventBus):
+    def __init__(self, eventbus: EventBus, parser):
         self.registry = ParsieRegistry()
         self.event_bus = eventbus
+        self.parser = parser
 
         # Known plugin files: { "print": "/abs/path/print.py" }
         self.known_plugin_files: Dict[str, str] = {}

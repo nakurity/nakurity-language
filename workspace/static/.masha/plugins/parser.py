@@ -183,7 +183,7 @@ class Parser:
 
         # Now create an isolated ParsiePluginManager instance
         from static.shared.manager import ParsiePluginManager
-        self.parsie = ParsiePluginManager(self.pm.event_bus)
+        self.parsie = ParsiePluginManager(self.pm.event_bus, self)
 
     def tokenize_line(self, line: str) -> List[str]:
         return line.strip().split()
