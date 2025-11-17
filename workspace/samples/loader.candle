@@ -1,0 +1,16 @@
+(candle-loader)
+  .parameters [below]
+
+    >>>>>>>>>>>>>>>>>>>>> Liquidity Header
+    type-include [.nakurility, .masha, .liquidity, .carrier, .outercode]
+    executables-include []
+    object-locations (default)
+    outsiders (candle-loader)
+    Liquidity Header <<<<<<<<<<<<<<<<<<<<<
+
+    [head:index]
+
+  .terminate (parameters)
+  .instructions (python)
+    pass
+  .terminate (instructions)
