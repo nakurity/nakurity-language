@@ -1,0 +1,4 @@
+(candle-registrar)
+  .loader-instructor [self@directory/candle/instructions.py]
+  .loader-parameters [self@directory/candle/parameters.txt]
+  .autobuild false
