@@ -12,5 +12,16 @@
 
   .terminate (parameters)
   .instructions (python)
-    pass
+    class Candle:
+      def __init__(self, 
+        parameters: str,
+        candle: CandleLoader
+      ):
+        self.header_information = parameters
+        self.candle = candle
+
+      def environment(self):
+        return { 'candle-version': '0.0.1', 'build-time': '2025-11-17T08:37:18Z', 'loader-version': 'put hash here' }
+      def launch(self):
+        pass # code that candle will actually execute
   .terminate (instructions)
